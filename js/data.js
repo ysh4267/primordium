@@ -21,10 +21,11 @@ const DATA = {
     coins:  { name: '화폐', icon: 'coin',     phase: 'civ', baseCap: 250, needsTech: 'currency' },
   },
 
-  /* ---------- 진화 단계: 반복 구매 ---------- */
+  /* ---------- 진화 단계: 반복 구매 ----------
+   * 정렬 규칙: 자원(RNA→DNA) → 기능(생산→한도) → 증폭 순서 고정 */
   evolutions: {
-    membrane:  { name: '세포막',       icon: 'membrane',  desc: 'RNA 저장 한도 +45',          cost: { rna: 2 },  mult: 1.18 },
     organelle: { name: '세포소기관',   icon: 'organelle', desc: 'RNA +0.7/s',                 cost: { rna: 12 }, mult: 1.22 },
+    membrane:  { name: '세포막',       icon: 'membrane',  desc: 'RNA 저장 한도 +45',          cost: { rna: 2 },  mult: 1.18 },
     nucleus:   { name: '핵',           icon: 'nucleus',   desc: 'RNA 1.4/s → DNA 0.7/s 변환', cost: { dna: 5 },  mult: 1.25 },
     eukaryote: { name: '진핵세포',     icon: 'eukaryote', desc: 'DNA 저장 한도 +40',          cost: { dna: 8 },  mult: 1.30 },
     mito:      { name: '미토콘드리아', icon: 'mito',      desc: '세포소기관 효율 +25%',       cost: { dna: 22 }, mult: 1.35 },
@@ -48,31 +49,40 @@ const DATA = {
     merchant:   { name: '상인',   icon: 'coin',   out: { coins: 0.5 },   slotFrom: 'market', perSlot: 1 },
   },
 
-  /* ---------- 문명 단계: 건물 ---------- */
+  /* ---------- 문명 단계: 건물 ----------
+   * cat = 드로어 섹션. 정렬 규칙: 주거 → 생산 일자리(자원 순) → 자동 생산 → 저장·증폭 */
   buildings: {
-    hut:     { name: '오두막',    icon: 'hut',      desc: '인구 한도 +2',
+    // 주거
+    hut:     { name: '오두막',    icon: 'hut',      cat: 'home', desc: '인구 한도 +2',
                cost: { lumber: 10, stone: 4 },  mult: 1.32 },
-    farm:    { name: '농장',      icon: 'sprout',   desc: '농부 일자리 +1, 식량 한도 +25',
-               cost: { lumber: 8, stone: 2 },   mult: 1.28, needsTech: 'agriculture' },
-    camp:    { name: '벌목 캠프', icon: 'tent',     desc: '벌목꾼 일자리 +2',
-               cost: { lumber: 14, stone: 6 },  mult: 1.30, needsTech: 'logging' },
-    quarry:  { name: '채석장',    icon: 'pick',     desc: '채석공 일자리 +2',
-               cost: { lumber: 18, stone: 10 }, mult: 1.30, needsTech: 'stonecutting' },
-    sundial: { name: '해시계',    icon: 'clock',    desc: '지식 +0.3/s, 지식 한도 +25',
-               cost: { lumber: 8, stone: 12 },  mult: 1.45 },
-    shed:    { name: '저장고',    icon: 'box',      desc: '식량 +90 · 목재/석재 +120 · 광물 +50 한도',
-               cost: { lumber: 30, stone: 18 }, mult: 1.22, needsTech: 'storage' },
-    school:  { name: '학당',      icon: 'school',   desc: '학자 일자리 +1, 지식 한도 +60',
-               cost: { lumber: 50, stone: 35 }, mult: 1.32, needsTech: 'writing' },
-    library: { name: '도서관',    icon: 'books',    desc: '지식 한도 +120, 학자 효율 +8%',
-               cost: { lumber: 65, stone: 50 }, mult: 1.30, needsTech: 'writing' },
-    mine:    { name: '광산',      icon: 'mountain', desc: '광부 일자리 +2',
-               cost: { lumber: 75, stone: 55 }, mult: 1.32, needsTech: 'mining' },
-    market:  { name: '시장',      icon: 'store',    desc: '상인 일자리 +1, 화폐 한도 +100',
-               cost: { lumber: 65, stone: 40, copper: 15 }, mult: 1.32, needsTech: 'currency' },
-    house:   { name: '주택',      icon: 'house',    desc: '인구 한도 +5',
+    house:   { name: '주택',      icon: 'house',    cat: 'home', desc: '인구 한도 +5',
                cost: { lumber: 50, stone: 30, copper: 10 }, mult: 1.30, needsTech: 'architecture' },
+    // 생산 일자리 (식량 → 목재 → 석재 → 광물 → 지식 → 화폐)
+    farm:    { name: '농장',      icon: 'sprout',   cat: 'prod', desc: '농부 일자리 +1, 식량 한도 +25',
+               cost: { lumber: 8, stone: 2 },   mult: 1.28, needsTech: 'agriculture' },
+    camp:    { name: '벌목 캠프', icon: 'tent',     cat: 'prod', desc: '벌목꾼 일자리 +2',
+               cost: { lumber: 14, stone: 6 },  mult: 1.30, needsTech: 'logging' },
+    quarry:  { name: '채석장',    icon: 'pick',     cat: 'prod', desc: '채석공 일자리 +2',
+               cost: { lumber: 18, stone: 10 }, mult: 1.30, needsTech: 'stonecutting' },
+    mine:    { name: '광산',      icon: 'mountain', cat: 'prod', desc: '광부 일자리 +2',
+               cost: { lumber: 75, stone: 55 }, mult: 1.32, needsTech: 'mining' },
+    school:  { name: '학당',      icon: 'school',   cat: 'prod', desc: '학자 일자리 +1, 지식 한도 +60',
+               cost: { lumber: 50, stone: 35 }, mult: 1.32, needsTech: 'writing' },
+    market:  { name: '시장',      icon: 'store',    cat: 'prod', desc: '상인 일자리 +1, 화폐 한도 +100',
+               cost: { lumber: 65, stone: 40, copper: 15 }, mult: 1.32, needsTech: 'currency' },
+    // 자동 생산
+    sundial: { name: '해시계',    icon: 'clock',    cat: 'auto', desc: '지식 +0.3/s, 지식 한도 +25',
+               cost: { lumber: 8, stone: 12 },  mult: 1.45 },
+    // 저장·증폭
+    shed:    { name: '저장고',    icon: 'box',      cat: 'store', desc: '식량 +90 · 목재/석재 +120 · 광물 +50 한도',
+               cost: { lumber: 30, stone: 18 }, mult: 1.22, needsTech: 'storage' },
+    library: { name: '도서관',    icon: 'books',    cat: 'store', desc: '지식 한도 +120, 학자 효율 +8%',
+               cost: { lumber: 65, stone: 50 }, mult: 1.30, needsTech: 'writing' },
   },
+
+  buildingCats: [
+    ['home', '주거'], ['prod', '생산 일자리'], ['auto', '자동 생산'], ['store', '저장과 증폭'],
+  ],
 
   /* ---------- 불가사의 (구간 건설) ---------- */
   wonder: {

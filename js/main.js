@@ -103,6 +103,7 @@ const G = (() => {
       prevPhase = state.phase;
       UI.resetCharts();
       UI.markDirty();
+      UI.switchTab('dash', state); // 드로어를 닫고 채집 버튼이 보이는 대시보드로
       UI.showOverlay('user', '지성 획득',
         '수십억 년의 진화 끝에, 인류가 깨어났습니다.\n이제 부족을 이끌고 문명을 세우세요.',
         '문명 시작', null);

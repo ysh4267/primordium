@@ -20,6 +20,9 @@ const UI = (() => {
     return (Math.floor(n * 10) / 10).toFixed(1).replace(/\.0$/, '');
   }
 
+  // 카운트류(클릭/행동)는 축약 대신 천 단위 구분으로 통일
+  const fmtInt = (n) => Math.floor(n).toLocaleString('ko-KR');
+
   function fmtRate(n) {
     if (!isFinite(n) || Math.abs(n) < 0.005) return '0/s';
     const s = n > 0 ? '+' : '−';
@@ -143,14 +146,15 @@ const UI = (() => {
 
   const CAT = {
     civ: [
-      { key: 'food', name: '식량', color: '#1BAF7A', of: (r) => r.food },
-      { key: 'lumber', name: '목재', color: '#EB6834', of: (r) => r.lumber },
-      { key: 'stone', name: '석재', color: '#4A3AA7', of: (r) => r.stone },
-      { key: 'etc', name: '기타', color: '#5B91FF', of: (r) => r.copper + r.iron + r.know + r.coins },
+      { key: 'food', name: '식량', color: '#1BAF7A', resId: 'food', of: (r) => r.food },
+      { key: 'lumber', name: '목재', color: '#EB6834', resId: 'lumber', of: (r) => r.lumber },
+      { key: 'stone', name: '석재', color: '#4A3AA7', resId: 'stone', of: (r) => r.stone },
+      { key: 'etc', name: '기타', color: '#5B91FF', title: '구리·철·지식·화폐 합계',
+        of: (r) => r.copper + r.iron + r.know + r.coins },
     ],
     evolution: [
-      { key: 'rna', name: 'RNA', color: '#5B91FF', of: (r) => r.rna },
-      { key: 'dna', name: 'DNA', color: '#D55181', of: (r) => r.dna },
+      { key: 'rna', name: 'RNA', color: '#5B91FF', resId: 'rna', of: (r) => r.rna },
+      { key: 'dna', name: 'DNA', color: '#D55181', resId: 'dna', of: (r) => r.dna },
     ],
   };
 
@@ -169,14 +173,15 @@ const UI = (() => {
       { id: 'rna', name: 'RNA', color: '#3987E5' },
       { id: 'dna', name: 'DNA', color: '#D55181' },
     ],
+    // 정식 자원 순서(자원 정의 순서와 동일)로 통일 — 배분 바/기록 표/일자리와 같은 순서
     civ: [
       { id: 'food', name: '식량', color: '#199E70' },
       { id: 'lumber', name: '목재', color: '#D95926' },
       { id: 'stone', name: '석재', color: '#9085E9' },
       { id: 'copper', name: '구리', color: '#D55181', needsTech: 'mining' },
-      { id: 'coins', name: '화폐', color: '#C98500', needsTech: 'currency' },
+      { id: 'iron', name: '철', color: '#008300', needsTech: 'ironwork' },
       { id: 'know', name: '지식', color: '#3987E5' },
-      { id: 'iron', name: '철', color: '#E66767', needsTech: 'ironwork' },
+      { id: 'coins', name: '화폐', color: '#C98500', needsTech: 'currency' },
     ],
   };
 
@@ -291,7 +296,11 @@ const UI = (() => {
       p.classList.toggle('is-active', p.id === 'panel-' + tab));
     $('tab-title').textContent = TAB_TITLES[tab];
     if (tab === 'records') renderRecordsTab(st, lastRates); // 1초 대기 없이 즉시 표시
-    if (tab === 'ach') renderAchTab(st);
+    if (tab === 'ach') {
+      renderAchTab(st);
+      achSeen = Object.keys(st.ach || {}).length; // 확인 배지 해제
+      try { localStorage.setItem('primordium-ach-seen', String(achSeen)); } catch (e) {}
+    }
     if (tab === 'dash') renderChart(st);
     update(st, lastRates);
   }
@@ -301,6 +310,9 @@ const UI = (() => {
   let structureDirty = true;
   let builtPhase = null;
   let builtSig = '';
+  // 업적 확인 배지: 마지막으로 업적 탭을 본 시점의 달성 수
+  let achSeen = 0;
+  try { achSeen = Number(localStorage.getItem('primordium-ach-seen')) || 0; } catch (e) {}
 
   function markDirty() { structureDirty = true; }
 
@@ -361,7 +373,8 @@ const UI = (() => {
       const t = el('span', null, d.label);
       const sub = el('span', 'sub', d.sub);
       btn.append(t, sub);
-      btn.addEventListener('click', () => { d.act(G.state); quickUpdate(); });
+      btn.title = '길게 누르면 연속 실행';
+      holdRepeat(btn, () => { d.act(G.state); quickUpdate(); });
       g.append(btn);
       gatherRefs.push({ btn, sub, def: d });
     }
@@ -380,6 +393,7 @@ const UI = (() => {
       const dot = el('span', 'alloc-dot');
       dot.style.background = c.color;
       const name = el('span', 'name', c.name);
+      if (c.title) name.title = c.title;
       const pct = el('span', 'pct', '0%');
       name.append(pct);
       const amt = el('span', 'amt tnum', '0');
@@ -444,7 +458,12 @@ const UI = (() => {
     } else {
       const netFood = prod.food - cons.food;
       const growing = st.pop < cap.pop && st.res.food > 1;
-      setStat(0, 'user', '인구', String(st.pop), `/ ${cap.pop}`, growing ? '성장 중' : '정체');
+      // 노는 시민이 있으면 성장 상태보다 우선해 표시
+      const free = Engine.freeCitizens(st);
+      let openSlots = 0;
+      for (const j in DATA.jobs) openSlots += Math.max(0, Engine.slots(st, j) - st.jobs[j]);
+      setStat(0, 'user', '인구', String(st.pop), `/ ${cap.pop}`,
+        free > 0 && openSlots > 0 ? `미배정 ${free}명` : growing ? '성장 중' : '정체');
       setStat(1, 'wheat', '식량 순생산', fmtRate(netFood).replace('/s', ''), '/s',
         netFood >= 0 ? '안정' : '부족');
       setStat(2, 'scroll', '지식', fmt(st.res.know), `/ ${fmt(cap.know)}`,
@@ -468,6 +487,11 @@ const UI = (() => {
     $('pf-rate').textContent = fmtRate(totalRate);
     $('pf-essence').textContent = `✦ ${st.essence} (+${Math.round(st.essence * 5)}%)`;
 
+    // 첫 클릭 유도: 진화 시작 직후 RNA 형성 버튼 강조
+    if (st.phase === 'evolution' && gatherRefs[0])
+      gatherRefs[0].btn.classList.toggle('is-pulse',
+        st.stats.clicks < 5 && st.evo.organelle === 0);
+
     // 채집 버튼 상태
     for (const gr of gatherRefs) {
       if (gr.def.label === 'DNA 합성') {
@@ -490,15 +514,25 @@ const UI = (() => {
       a.seg.style.display = p < 0.005 ? 'none' : '';
       a.seg.style.flexGrow = String(p);
       a.pct.textContent = Math.round(p * 100) + '%';
-      a.amt.textContent = fmt(v);
+      // 한도 90% 이상이면 '보유 / 한도'로 전환해 저장 병목을 드러낸다
+      const rid = a.def.resId;
+      if (rid && cap[rid] !== undefined && st.res[rid] >= cap[rid] * 0.9) {
+        a.amt.textContent = `${fmt(v)} / ${fmt(cap[rid])}`;
+        a.amt.classList.add('is-full');
+        a.amt.title = st.res[rid] >= cap[rid] - 1e-9 ? '저장 한도 도달' : '저장 한도 근접';
+      } else {
+        a.amt.textContent = fmt(v);
+        a.amt.classList.remove('is-full');
+        a.amt.removeAttribute('title');
+      }
     }
 
     // 활동
     $('activity-count').textContent = '';
     $('activity-count').append(
-      document.createTextNode(String(st.stats.actions) + ' '),
+      document.createTextNode(fmtInt(st.stats.actions) + ' '),
       el('span', 'unit', '행동'));
-    $('activity-badge').textContent = st.stats.clicks + ' 클릭';
+    $('activity-badge').textContent = fmtInt(st.stats.clicks) + ' 클릭';
 
     updateHeat();
     updateTrending(st);
@@ -564,7 +598,7 @@ const UI = (() => {
       const ic = el('div', 'trend-icon');
       ic.append(icon((DATA.resources[it.m.id] || {}).icon || 'box', 16));
       const mid = el('div');
-      mid.append(el('div', 'trend-name', it.m.name), sparkline(it.m.id));
+      mid.append(el('div', 'trend-name', it.m.name), sparkline(it.m.id, it.m.color));
       const val = el('div', 'trend-val');
       val.append(
         el('div', 'n tnum', fmt(it.cur)),
@@ -574,7 +608,7 @@ const UI = (() => {
     }
   }
 
-  function sparkline(metricId) {
+  function sparkline(metricId, color) {
     const svgNS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('class', 'trend-spark');
@@ -593,7 +627,7 @@ const UI = (() => {
     const path = document.createElementNS(svgNS, 'path');
     path.setAttribute('d', d);
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', '#5B91FF');
+    path.setAttribute('stroke', color || '#5B91FF'); // 자원 고유 색으로 통일
     path.setAttribute('stroke-width', '2');
     path.setAttribute('stroke-linecap', 'round');
     path.setAttribute('stroke-linejoin', 'round');
@@ -661,7 +695,8 @@ const UI = (() => {
       t.setAttribute('x', chartW / 2); t.setAttribute('y', chartH / 2);
       t.setAttribute('text-anchor', 'middle');
       t.setAttribute('fill', '#8A8B92'); t.setAttribute('font-size', '13');
-      t.textContent = '데이터 수집 중…';
+      t.textContent = st.phase === 'evolution'
+        ? 'RNA 형성을 누르면 여기에 추이가 그려집니다' : '데이터 수집 중…';
       svg.append(t);
       chartLeave();
       return;
@@ -857,16 +892,78 @@ const UI = (() => {
 
   // 카드 참조: id → {count, costBox, btn}
   let buildRefs = {};
+  let buyAmt = 1; // 구매 수량: 1 | 10 | 0(=최대)
 
   function costLine(box, cost, st) {
     box.textContent = '';
+    const cap = Engine.caps(st);
     for (const r in cost) {
+      // 저장 한도 자체가 비용보다 낮으면 '부족(빨강)'이 아니라 별도 표시 — 저장고 안내
+      const capShort = cap[r] !== undefined && cap[r] < cost[r];
       const ok = st.res[r] >= cost[r];
-      const span = el('span', ok ? 'cost-ok tnum' : 'cost-no tnum');
-      span.title = DATA.resources[r].name;
+      const span = el('span', capShort ? 'cost-cap tnum' : ok ? 'cost-ok tnum' : 'cost-no tnum');
+      span.title = capShort
+        ? `${DATA.resources[r].name} 저장 한도(${fmt(cap[r])})가 비용보다 낮습니다 — 저장고가 필요합니다`
+        : DATA.resources[r].name;
       span.append(icon(DATA.resources[r].icon, 12), document.createTextNode(' ' + fmt(cost[r])));
       box.append(span);
     }
+  }
+
+  // 구매 수량 선택 칩 (드로어 상단)
+  function buyAmtRow() {
+    const row = el('div', 'buy-amt');
+    row.append(el('span', 'buy-amt-label', '구매 수량'));
+    for (const [v, label] of [[1, '×1'], [10, '×10'], [0, '최대']]) {
+      const b = el('button', 'amt-chip' + (buyAmt === v ? ' is-active' : ''), label);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(buyAmt === v));
+      b.addEventListener('click', () => {
+        buyAmt = v;
+        row.querySelectorAll('.amt-chip').forEach((c) => {
+          c.classList.toggle('is-active', c === b);
+          c.setAttribute('aria-pressed', String(c === b));
+        });
+      });
+      row.append(b);
+    }
+    return row;
+  }
+
+  // 수량만큼 반복 구매 후 로그는 한 줄로 압축 (완공 같은 특수 이벤트는 보존)
+  function buyN(buyFn, label) {
+    const n = buyAmt === 0 ? 1000 : buyAmt;
+    const evts = [];
+    let k = 0;
+    while (k < n && buyFn(evts)) k++;
+    if (!k) return;
+    let out = evts;
+    if (k > 1) {
+      const last = evts[evts.length - 1];
+      out = [{ kind: last.kind, title: `${label} ×${k} 구매`, sub: last.sub }];
+      const done = evts.find((e) => e.kind === 'wonder' && e.title.indexOf('완공') >= 0);
+      if (done) out.push(done);
+    }
+    afterAction(out);
+  }
+
+  // 길게 누르면 연속 실행 (400ms 후 130ms 간격). 키보드 클릭(detail 0)도 지원.
+  function holdRepeat(btn, fire) {
+    let t = null, iv = null;
+    const stop = () => {
+      if (t) clearTimeout(t);
+      if (iv) clearInterval(iv);
+      t = iv = null;
+    };
+    btn.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      fire(e);
+      t = setTimeout(() => { iv = setInterval(() => fire(e), 130); }, 400);
+    });
+    for (const evn of ['pointerup', 'pointerleave', 'pointercancel']) {
+      btn.addEventListener(evn, stop);
+    }
+    btn.addEventListener('click', (e) => { if (e.detail === 0) fire(e); });
   }
 
   function buildBuildTab(st) {
@@ -875,13 +972,13 @@ const UI = (() => {
     buildRefs = {};
 
     if (st.phase === 'evolution') {
+      root.append(buyAmtRow());
       root.append(el('div', 'section-label', '세포 기관 — 반복 구매'));
       const grid1 = el('div', 'build-grid');
       for (const id in DATA.evolutions) {
         const d = DATA.evolutions[id];
         grid1.append(itemCard('evo:' + id, d.icon, d.name, d.desc, () => {
-          const evts = [];
-          if (Engine.buyEvo(G.state, id, evts)) afterAction(evts);
+          buyN((evts) => Engine.buyEvo(G.state, id, evts), d.name);
         }));
       }
       root.append(grid1);
@@ -899,18 +996,8 @@ const UI = (() => {
       return;
     }
 
-    // 문명 단계
-    root.append(el('div', 'section-label', '건물'));
-    const grid = el('div', 'build-grid');
-    for (const id in DATA.buildings) {
-      if (!Engine.buildingVisible(st, id)) continue;
-      const d = DATA.buildings[id];
-      grid.append(itemCard('b:' + id, d.icon, d.name, d.desc, () => {
-        const evts = [];
-        if (Engine.buyBuilding(G.state, id, evts)) afterAction(evts);
-      }));
-    }
-    root.append(grid);
+    // 문명 단계 — 불가사의(개방 시)를 맨 위로, 이어서 카테고리별 섹션
+    root.append(buyAmtRow());
 
     if (Engine.wonderVisible(st)) {
       root.append(el('div', 'section-label', '불가사의'));
@@ -930,12 +1017,26 @@ const UI = (() => {
       const btn = el('button', 'pill pill-dark', '건설 단계 진행');
       btn.type = 'button';
       btn.addEventListener('click', () => {
-        const evts = [];
-        if (Engine.buyWonderSeg(G.state, evts)) afterAction(evts);
+        buyN((evts) => Engine.buyWonderSeg(G.state, evts), '대신전 건설');
       });
       card.append(top, desc, prog, cost, btn);
       root.append(card);
       buildRefs['wonder'] = { count: nm.lastChild, costBox: cost, btn, fill };
+    }
+
+    for (const [cat, catName] of DATA.buildingCats) {
+      const ids = Object.keys(DATA.buildings).filter((id) =>
+        DATA.buildings[id].cat === cat && Engine.buildingVisible(st, id));
+      if (!ids.length) continue;
+      root.append(el('div', 'section-label', catName));
+      const grid = el('div', 'build-grid');
+      for (const id of ids) {
+        const d = DATA.buildings[id];
+        grid.append(itemCard('b:' + id, d.icon, d.name, d.desc, () => {
+          buyN((evts) => Engine.buyBuilding(G.state, id, evts), d.name);
+        }));
+      }
+      root.append(grid);
     }
   }
 
@@ -1007,6 +1108,20 @@ const UI = (() => {
 
   let techRefs = {};
 
+  // 부족한 연구의 예상 대기 시간 (현재 순생산 기준)
+  function researchEta(st, cost) {
+    const { prod, cons } = lastRates;
+    let worst = 0;
+    for (const r in cost) {
+      const deficit = cost[r] - st.res[r];
+      if (deficit <= 0) continue;
+      const net = (prod[r] || 0) - (cons[r] || 0);
+      if (net <= 0.001) return Infinity;
+      worst = Math.max(worst, deficit / net);
+    }
+    return worst;
+  }
+
   function buildResearchTab(st) {
     const root = $('research-content');
     root.textContent = '';
@@ -1048,7 +1163,7 @@ const UI = (() => {
           card.append(btn);
         }
         grid.append(card);
-        techRefs[id] = { costBox: cost, btn, done };
+        techRefs[id] = { costBox: cost, btn, done, countEl: nm.lastChild };
       }
       root.append(grid);
     }
@@ -1060,7 +1175,17 @@ const UI = (() => {
       if (ref.done) continue;
       const d = DATA.techs[id];
       costLine(ref.costBox, d.cost, st);
-      if (ref.btn) ref.btn.disabled = !Engine.canPay(st, d.cost);
+      const can = Engine.canPay(st, d.cost);
+      if (ref.btn) ref.btn.disabled = !can;
+      // '언제 살 수 있나'를 드로어 안에서 바로 알 수 있게 ETA 표시
+      if (ref.countEl) {
+        if (can) ref.countEl.textContent = '연구 가능';
+        else {
+          const eta = researchEta(st, d.cost);
+          ref.countEl.textContent =
+            eta === Infinity ? '생산 부족' : `약 ${fmtDur(Math.ceil(eta))} 후 가능`;
+        }
+      }
     }
   }
 
@@ -1096,8 +1221,26 @@ const UI = (() => {
     root.append(summary);
 
     const listCard = el('div', 'card');
-    listCard.append(el('h2', null, '일자리 배정'));
-    listCard.lastChild.style.marginBottom = '16px';
+    const lh = el('div', 'card-head');
+    lh.append(el('h2', null, '일자리 배정'));
+    const fillBtn = el('button', 'pill pill-ghost', '빈 일자리 채우기');
+    fillBtn.type = 'button';
+    fillBtn.title = '미배정 시민을 일자리 순서대로 빈 슬롯에 배정합니다';
+    fillBtn.addEventListener('click', () => {
+      const s = G.state;
+      for (const j in DATA.jobs) {
+        const room = Engine.slots(s, j) - s.jobs[j];
+        const free = Engine.freeCitizens(s);
+        if (room > 0 && free > 0) Engine.assign(s, j, Math.min(room, free));
+      }
+      quickUpdate();
+    });
+    lh.append(fillBtn);
+    listCard.append(lh);
+    peopleStatRefs._fillBtn = fillBtn;
+    const emptyMsg = el('div', 'log-empty',
+      '건물을 지으면 일자리가 열립니다 — 농장(농부) · 벌목 캠프(벌목꾼) · 채석장(채석공) · 광산(광부) · 학당(학자) · 시장(상인)');
+    peopleStatRefs._emptyMsg = emptyMsg;
     const list = el('div', 'job-list');
     for (const j in DATA.jobs) {
       const d = DATA.jobs[j];
@@ -1115,14 +1258,15 @@ const UI = (() => {
       minus.type = plus.type = 'button';
       minus.setAttribute('aria-label', d.name + ' 감원');
       plus.setAttribute('aria-label', d.name + ' 증원');
-      minus.addEventListener('click', () => { Engine.assign(G.state, j, -1); quickUpdate(); });
-      plus.addEventListener('click', () => { Engine.assign(G.state, j, +1); quickUpdate(); });
+      minus.title = plus.title = 'Shift+클릭 = 10명 · 길게 누르면 연속';
+      holdRepeat(minus, (e) => { Engine.assign(G.state, j, e && e.shiftKey ? -10 : -1); quickUpdate(); });
+      holdRepeat(plus, (e) => { Engine.assign(G.state, j, e && e.shiftKey ? 10 : 1); quickUpdate(); });
       btns.append(minus, plus);
       row.append(ic, info, count, btns);
       list.append(row);
       jobRefs[j] = { row, t2, count, minus, plus };
     }
-    listCard.append(list);
+    listCard.append(list, emptyMsg);
     root.append(listCard);
   }
 
@@ -1142,12 +1286,16 @@ const UI = (() => {
       ? fmt(Math.max(0, need - st.growthT)) : '—';
     peopleStatRefs.growth.unit.textContent = growing ? '초 후' : (st.pop >= cap.pop ? '주거 부족' : '식량 부족');
 
+    let visibleRows = 0;
+    let totalOpen = 0;
     for (const j in jobRefs) {
       const ref = jobRefs[j];
       const sl = Engine.slots(st, j);
+      totalOpen += Math.max(0, sl - st.jobs[j]);
       const visible = sl > 0 || st.jobs[j] > 0;
       ref.row.style.display = visible ? '' : 'none';
       if (!visible) continue;
+      visibleRows++;
       const m = Engine.jobMult(st, j);
       const outs = [];
       for (const r in DATA.jobs[j].out)
@@ -1160,6 +1308,11 @@ const UI = (() => {
       ref.minus.disabled = st.jobs[j] <= 0;
       ref.plus.disabled = st.jobs[j] >= sl || Engine.freeCitizens(st) <= 0;
     }
+    // 빈 상태 안내 + 채우기 버튼 활성 조건
+    if (peopleStatRefs._emptyMsg)
+      peopleStatRefs._emptyMsg.style.display = visibleRows ? 'none' : '';
+    if (peopleStatRefs._fillBtn)
+      peopleStatRefs._fillBtn.disabled = free <= 0 || totalOpen <= 0;
   }
 
   /* ================================================================
@@ -1236,8 +1389,8 @@ const UI = (() => {
     const sg = el('div', 'stats-grid');
     const entries = [
       ['플레이 시간', fmtDur(st.stats.playSec)],
-      ['총 행동', String(st.stats.actions)],
-      ['클릭', String(st.stats.clicks)],
+      ['총 행동', fmtInt(st.stats.actions)],
+      ['클릭', fmtInt(st.stats.clicks)],
       ['누적 지식', fmt(st.stats.cumKnow)],
       ['초월 횟수', String(st.ascensions)],
       ['정수', `✦ ${st.essence} (+${Math.round(st.essence * 5)}%)`],
@@ -1276,8 +1429,9 @@ const UI = (() => {
       tr.append(el('td', null, def.name));
       tr.append(el('td', 'num', fmt(st.res[r])));
       tr.append(el('td', 'num', fmt(cap[r])));
-      tr.append(el('td', 'num',
-        fmtRate(dispNet(st, cap, r, (rt.prod[r] || 0) - (rt.cons[r] || 0)))));
+      const net = (rt.prod[r] || 0) - (rt.cons[r] || 0);
+      const capped = net > 0 && st.res[r] >= cap[r] - 1e-9;
+      tr.append(el('td', 'num', capped ? '가득참' : fmtRate(dispNet(st, cap, r, net))));
       tbody.append(tr);
     }
     tbl.append(tbody);
@@ -1456,9 +1610,38 @@ const UI = (() => {
 
   function log(evts) {
     if (!evts || !evts.length) return;
-    for (const e of evts) logs.unshift(Object.assign({ ts: Date.now() }, e));
+    for (const e of evts) {
+      // 정례 이벤트(인구/기아)는 연속되면 한 줄로 병합해 로그 도배 방지
+      const prev = logs[0];
+      if (prev && prev.kind === e.kind && (e.kind === 'pop' || e.kind === 'warn')) {
+        const n = (prev.n || 1) + 1;
+        logs[0] = Object.assign({}, e, {
+          ts: Date.now(), n,
+          title: e.title.replace(/ ×\d+$/, '') + ` ×${n}`,
+        });
+      } else {
+        logs.unshift(Object.assign({ ts: Date.now(), n: 1 }, e));
+      }
+      if (e.kind === 'ach') toast('trophy', e.title, e.sub);
+    }
     if (logs.length > 300) logs.length = 300;
     renderLog();
+  }
+
+  // 비모달 토스트 — 어느 화면에 있든 업적 달성을 알린다
+  function toast(icn, title, sub) {
+    const box = $('toast-box');
+    if (!box) return;
+    const t = el('div', 'toast');
+    const ic = el('span', 'toast-icon');
+    ic.append(icon(icn, 16));
+    const mid = el('div');
+    mid.append(el('div', 't1', title), el('div', 't2', sub || ''));
+    t.append(ic, mid);
+    box.append(t);
+    while (box.childElementCount > 3) box.firstElementChild.remove();
+    setTimeout(() => { t.classList.add('is-out'); }, 2600);
+    setTimeout(() => { t.remove(); }, 3000);
   }
 
   function renderLog() {
@@ -1486,33 +1669,61 @@ const UI = (() => {
    * 힌트 / 아바타 / 오버레이
    * ================================================================ */
 
+  // 다음 목표 텍스트 + 클릭 시 이동할 화면. 필요 수치를 함께 표기해 목표 감각을 준다.
   function goalHint(st) {
     if (st.phase === 'evolution') {
-      if (st.evo.organelle < 1) return 'RNA를 모아 세포소기관을 만드세요';
-      if (st.evo.nucleus < 1) return 'DNA를 합성해 핵을 만드세요';
+      if (st.evo.organelle < 1)
+        return { text: `RNA ${Engine.evoCost(st, 'organelle').rna}를 모아 세포소기관을 만드세요`, target: 'build' };
+      if (st.evo.nucleus < 1)
+        return { text: `RNA를 DNA로 합성해 핵을 만드세요 (DNA ${Engine.evoCost(st, 'nucleus').dna})`, target: 'build' };
       const step = Engine.chainNext(st);
-      if (step) return `다음 진화: ${step.name} (DNA ${step.cost.dna})`;
-      return '';
+      if (step) return { text: `다음 진화: ${step.name} (DNA ${step.cost.dna})`, target: 'build' };
+      return { text: '', target: '' };
     }
-    if (st.buildings.sundial < 1) return '해시계를 지어 지식을 모으세요';
-    if (st.buildings.hut < 1) return '오두막을 지어 시민을 맞이하세요';
-    if (!st.techs.agriculture) return '「농경」을 연구하세요';
-    if (st.buildings.farm < 1) return '농장을 짓고 농부를 배정하세요';
-    if (!st.techs.logging) return '「벌목」을 연구하세요';
-    if (!st.techs.writing) return '연구를 진행해 「문자」까지 도달하세요';
-    if (st.buildings.school < 1) return '학당을 짓고 학자를 배정하세요';
+    // 초반: 채집 선행 안내 (비용을 못 대는 상태에서 '지어라'만 반복하지 않게)
+    if (st.buildings.sundial < 1) {
+      const c = Engine.bCost(st, 'sundial');
+      if (st.res.lumber < c.lumber || st.res.stone < c.stone)
+        return { text: `벌목·채석 버튼으로 목재 ${c.lumber}·석재 ${c.stone}을 모으세요 (해시계)`, target: 'dash' };
+      return { text: '해시계를 지어 지식을 모으세요', target: 'build' };
+    }
+    if (st.buildings.hut < 1) {
+      const c = Engine.bCost(st, 'hut');
+      if (st.res.lumber < c.lumber || st.res.stone < c.stone)
+        return { text: `채집으로 목재 ${c.lumber}·석재 ${c.stone}을 모아 오두막을 지으세요`, target: 'dash' };
+      return { text: '오두막을 지어 시민을 맞이하세요', target: 'build' };
+    }
+    // 노는 시민이 있고 빈 일자리가 있으면 최우선 안내
+    const free = Engine.freeCitizens(st);
+    if (free > 0) {
+      let openSlots = 0;
+      for (const j in DATA.jobs) openSlots += Math.max(0, Engine.slots(st, j) - st.jobs[j]);
+      if (openSlots > 0)
+        return { text: `노는 시민 ${free}명을 일자리에 배정하세요`, target: 'people' };
+    }
+    if (!st.techs.agriculture)
+      return { text: `지식 ${DATA.techs.agriculture.cost.know}으로 「농경」을 연구하세요`, target: 'research' };
+    if (st.buildings.farm < 1) return { text: '농장을 짓고 농부를 배정하세요', target: 'build' };
+    if (!st.techs.logging)
+      return { text: `지식 ${DATA.techs.logging.cost.know}으로 「벌목」을 연구하세요`, target: 'research' };
+    if (!st.techs.writing) return { text: '연구를 진행해 「문자」까지 도달하세요', target: 'research' };
+    if (st.buildings.school < 1) return { text: '학당을 짓고 학자를 배정하세요', target: 'build' };
     if (!st.techs.engineering) {
       for (const id of ['mining', 'tools', 'irrigation', 'currency', 'architecture',
         'scholarship', 'bronze', 'ironwork', 'trade', 'engineering'])
-        if (!st.techs[id]) return `「${DATA.techs[id].name}」 연구가 남아 있습니다`;
+        if (!st.techs[id])
+          return { text: `「${DATA.techs[id].name}」 연구가 남아 있습니다 (지식 ${DATA.techs[id].cost.know})`, target: 'research' };
     }
     if (st.wonderSeg < DATA.wonder.segments)
-      return `대신전을 건설하세요 (${st.wonderSeg}/${DATA.wonder.segments})`;
-    return '초월할 준비가 되었습니다 — 설정 탭에서 초월하세요';
+      return { text: `대신전을 건설하세요 (${st.wonderSeg}/${DATA.wonder.segments})`, target: 'build' };
+    return { text: '초월할 준비가 되었습니다 — 설정 탭에서 초월하세요', target: 'settings' };
   }
 
   function updateChrome(st) {
-    $('hint-chip').textContent = goalHint(st);
+    const goal = goalHint(st);
+    const hc = $('hint-chip');
+    hc.textContent = goal.text;
+    hc.dataset.target = goal.target || '';
     const av = $('avatar');
     const avIcon = st.phase === 'evolution' ? 'cell'
       : st.wonderSeg >= DATA.wonder.segments ? 'temple' : 'user';
@@ -1535,6 +1746,10 @@ const UI = (() => {
         b.textContent = st.phase === 'evolution' ? '진화' : '건설';
     });
     $('pf-manage').textContent = st.phase === 'evolution' ? '진화 관리' : '건설 관리';
+    // 미확인 업적 점 배지
+    const achBtn = document.querySelector('.side-btn[data-tab="ach"]');
+    if (achBtn)
+      achBtn.classList.toggle('has-dot', Object.keys(st.ach || {}).length > achSeen);
   }
 
   let overlayCb = null;
@@ -1663,6 +1878,11 @@ const UI = (() => {
     wrap.addEventListener('pointerleave', chartLeave);
     $('btn-save').addEventListener('click', () => {
       flashBtn($('btn-save'), G.save() ? '저장됨!' : '저장 실패');
+    });
+    // 힌트 칩 클릭 → 해당 화면으로 이동
+    $('hint-chip').addEventListener('click', () => {
+      const t = $('hint-chip').dataset.target;
+      if (t) switchTab(t, G.state);
     });
     $('overlay-btn').addEventListener('click', () => closeOverlay(true));
   }
