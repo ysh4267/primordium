@@ -1555,6 +1555,39 @@ const UI = (() => {
     });
     grid.append(save);
 
+    // 클라우드 동기화 (Google Drive)
+    const cloud = el('div', 'card');
+    cloud.append(el('h2', null, '클라우드 동기화'));
+    if (!Sync.available()) {
+      cloud.append(el('p', 'setting-note',
+        'Google 계정으로 저장을 여러 기기에서 동기화하는 기능입니다. 활성화하려면 배포 소유자가 '
+        + 'Google Cloud Console에서 OAuth 클라이언트 ID(웹 애플리케이션, 원본 https://ysh4267.github.io)를 '
+        + '발급해 js/config.js의 googleClientId에 넣으면 됩니다.'));
+    } else {
+      const crow = el('div', 'setting-row');
+      crow.style.marginTop = '14px';
+      const bLogin = el('button', 'pill pill-dark', 'Google 로그인');
+      const bUp = el('button', 'pill pill-ghost', '지금 업로드');
+      const bDown = el('button', 'pill pill-ghost', '클라우드에서 불러오기');
+      const bOut = el('button', 'pill pill-ghost', '로그아웃');
+      for (const b of [bLogin, bUp, bDown, bOut]) b.type = 'button';
+      crow.append(bLogin, bUp, bDown, bOut);
+      const cnote = el('p', 'setting-note');
+      cloud.append(crow, cnote);
+      settingsRefs.cloud = { bLogin, bUp, bDown, bOut, note: cnote };
+      bLogin.addEventListener('click', () => {
+        Sync.signIn()
+          .then(() => { G.cloudUp(); quickUpdate(); })
+          .catch(() => { flashBtn(bLogin, '로그인 실패'); quickUpdate(); });
+      });
+      bUp.addEventListener('click', () => {
+        G.cloudUp().then((ok) => flashBtn(bUp, ok ? '업로드됨!' : '업로드 실패'));
+      });
+      bDown.addEventListener('click', () => { G.cloudDown(); });
+      bOut.addEventListener('click', () => { Sync.signOut(); quickUpdate(); });
+    }
+    grid.append(cloud);
+
     // 초기화
     const danger = el('div', 'card danger-zone');
     danger.append(el('h2', null, '초기화'));
@@ -1587,6 +1620,22 @@ const UI = (() => {
 
   function updateSettingsTab(st) {
     if (!settingsRefs.ascNum) return;
+    // 클라우드 동기화 상태
+    const c = settingsRefs.cloud;
+    if (c) {
+      const on = Sync.signedIn();
+      c.bLogin.style.display = on ? 'none' : '';
+      c.bUp.style.display = on ? '' : 'none';
+      c.bDown.style.display = on ? '' : 'none';
+      c.bOut.style.display = on ? '' : 'none';
+      c.note.textContent = on
+        ? (Sync.lastSyncAt
+          ? `로그인됨 — 마지막 업로드 ${fmtClock(Sync.lastSyncAt)}. 5분마다 자동 업로드됩니다.`
+          : '로그인됨 — 5분마다 자동 업로드됩니다.')
+        : (Sync.lastError
+          ? '오류: ' + Sync.lastError
+          : 'Google Drive의 앱 전용 공간에 저장을 백업합니다. 다른 기기에서 이어하려면 같은 계정으로 로그인하세요.');
+    }
     const can = Engine.canAscend(st);
     settingsRefs.ascNum.textContent = can
       ? `정수 +${Engine.essenceGain(st)}` : '조건 미달성';

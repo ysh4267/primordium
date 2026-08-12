@@ -19,6 +19,22 @@
 - 자동 저장(localStorage) · 내보내기/가져오기 · 오프라인 진행(최대 4시간)
 - 색각 이상 검증을 거친 차트 팔레트 (MOF-2009 시뮬레이션, OKLab ΔE)
 
+## 클라우드 동기화 활성화 (소유자 1회 설정)
+
+설정 탭의 Google 로그인 동기화(Drive 앱 전용 공간)는 OAuth 클라이언트 ID가 있어야 켜집니다:
+
+1. https://console.cloud.google.com/ 에서 프로젝트 생성(무료)
+2. `API 및 서비스 → 라이브러리`에서 **Google Drive API** 사용 설정
+3. `API 및 서비스 → OAuth 동의 화면`: 외부(External) 선택, 앱 이름/이메일만 입력,
+   범위에 `.../auth/drive.appdata` 추가, 게시 상태를 **프로덕션**으로 게시
+4. `사용자 인증 정보 → 사용자 인증 정보 만들기 → OAuth 클라이언트 ID`:
+   유형 **웹 애플리케이션**, 승인된 JavaScript 원본에 `https://ysh4267.github.io` 추가
+5. 발급된 클라이언트 ID를 `js/config.js`의 `googleClientId`에 붙여넣고 커밋/푸시
+
+저장 파일은 각 플레이어 본인의 Google Drive `appDataFolder`(앱 전용, 다른 앱/사람 접근 불가)에
+`primordium-save.json`으로 보관됩니다. 로그인 시 5분마다·화면 이탈 시 자동 업로드,
+「클라우드에서 불러오기」로 다른 기기에서 이어하기가 가능합니다.
+
 ## 개발
 
 정적 파일뿐이므로 `index.html`을 열면 바로 실행됩니다.

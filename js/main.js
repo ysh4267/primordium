@@ -10,6 +10,7 @@ const G = (() => {
   let histT = 0;   // 1초 히스토리 타이머
   let heatT = 0;   // 10초 히트맵 타이머
   let saveT = 0;   // 자동 저장 타이머
+  let syncT = 0;   // 클라우드 자동 업로드 타이머
   let prevPhase = null;
 
   /* ---------- 저장 ---------- */
@@ -61,6 +62,35 @@ const G = (() => {
     UI.showOverlay('cell', '새로운 시작',
       `정수의 힘이 원시 수프에 스며듭니다.\n모든 생산 +${state.essence * 5}% 상태로 다시 진화를 시작합니다.`,
       '진화 시작', null);
+  }
+
+  /* ---------- 클라우드 동기화 ---------- */
+
+  function cloudUp() {
+    return Sync.syncUp(Engine.serialize(state));
+  }
+
+  function cloudDown() {
+    return Sync.syncDown().then((text) => {
+      if (!text) {
+        UI.showOverlay('download', '클라우드 저장 없음',
+          '클라우드에 저장된 데이터가 없습니다.\n먼저 「지금 업로드」로 올려두세요.', '확인', null);
+        return;
+      }
+      let cloudState = null;
+      try { cloudState = Engine.deserialize(text); } catch (e) {}
+      if (!cloudState) {
+        UI.showOverlay('alert', '불러오기 실패',
+          '클라우드 저장 데이터를 읽을 수 없습니다.', '확인', null);
+        return;
+      }
+      const ageMin = Math.max(0, Math.round((Date.now() - cloudState.lastSave) / 60000));
+      const newer = cloudState.lastSave >= state.lastSave;
+      UI.showOverlay('download', '클라우드에서 불러오기',
+        `클라우드 저장: 약 ${ageMin}분 전 업로드.\n현재 기기의 진행을 덮어씁니다.`
+        + (newer ? '' : '\n주의: 현재 기기 저장이 더 최신입니다.'),
+        '불러온다', () => { replaceState(cloudState); });
+    });
   }
 
   function hardReset() {
@@ -131,6 +161,12 @@ const G = (() => {
       saveT = 0;
       save();
     }
+    // 5분 주기: 클라우드 자동 업로드 (로그인 시)
+    syncT += dt;
+    if (syncT >= 300) {
+      syncT = 0;
+      if (Sync.signedIn()) cloudUp();
+    }
 
     UI.update(state, rt);
   }
@@ -173,13 +209,16 @@ const G = (() => {
     setInterval(loop, 250);
     window.addEventListener('beforeunload', save);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') save();
+      if (document.visibilityState === 'hidden') {
+        save();
+        if (Sync.signedIn()) cloudUp(); // 떠날 때 클라우드에도 반영
+      }
     });
   }
 
   return {
     get state() { return state; },
-    boot, save, replaceState, doAscend, hardReset,
+    boot, save, replaceState, doAscend, hardReset, cloudUp, cloudDown,
   };
 })();
 
