@@ -134,6 +134,11 @@ const UI = (() => {
     return svg;
   }
 
+  // 한도에 도달해 실제로는 늘지 않는 자원의 순생산 표시를 0으로 클램프
+  function dispNet(st, cap, r, net) {
+    return net > 0 && st.res[r] >= cap[r] - 1e-9 ? 0 : net;
+  }
+
   /* ---------- 색/카테고리 (검증된 팔레트 — 순서 고정) ---------- */
 
   const CAT = {
@@ -427,30 +432,36 @@ const UI = (() => {
     const cap = Engine.caps(st);
     const { prod, cons } = rt;
 
-    // 스탯 카드
+    // 스탯 카드 (한도 도달 시 성장률 대신 '한도 도달' 표시)
     if (st.phase === 'evolution') {
-      setStat(0, 'rna', 'RNA', fmt(st.res.rna), `/ ${fmt(cap.rna)}`, fmtRate(prod.rna));
+      const rnaFull = st.res.rna >= cap.rna - 1e-9;
+      const dnaFull = st.res.dna >= cap.dna - 1e-9;
+      setStat(0, 'rna', 'RNA', fmt(st.res.rna), `/ ${fmt(cap.rna)}`,
+        rnaFull ? '한도 도달' : fmtRate(prod.rna - cons.rna));
       setStat(1, 'bolt', 'RNA 생산', fmt(prod.rna), '/s', `소기관 ${st.evo.organelle}`);
-      setStat(2, 'dna', 'DNA', fmt(st.res.dna), `/ ${fmt(cap.dna)}`, fmtRate(prod.dna));
+      setStat(2, 'dna', 'DNA', fmt(st.res.dna), `/ ${fmt(cap.dna)}`,
+        dnaFull ? '한도 도달' : fmtRate(prod.dna));
     } else {
       const netFood = prod.food - cons.food;
       const growing = st.pop < cap.pop && st.res.food > 1;
       setStat(0, 'user', '인구', String(st.pop), `/ ${cap.pop}`, growing ? '성장 중' : '정체');
       setStat(1, 'wheat', '식량 순생산', fmtRate(netFood).replace('/s', ''), '/s',
         netFood >= 0 ? '안정' : '부족');
-      setStat(2, 'scroll', '지식', fmt(st.res.know), `/ ${fmt(cap.know)}`, fmtRate(prod.know));
+      setStat(2, 'scroll', '지식', fmt(st.res.know), `/ ${fmt(cap.know)}`,
+        st.res.know >= cap.know - 1e-9 ? '한도 도달' : fmtRate(prod.know));
     }
 
     // 포트폴리오
     let total = 0, totalRate = 0;
     if (st.phase === 'evolution') {
       total = st.res.rna + st.res.dna;
-      totalRate = prod.rna + prod.dna - cons.rna;
+      totalRate = dispNet(st, cap, 'rna', prod.rna - cons.rna)
+        + dispNet(st, cap, 'dna', prod.dna);
     } else {
       for (const r in st.res) {
         if (r === 'rna' || r === 'dna') continue;
         total += st.res[r];
-        totalRate += prod[r] - cons[r];
+        totalRate += dispNet(st, cap, r, (prod[r] || 0) - (cons[r] || 0));
       }
     }
     $('pf-total').textContent = fmt(total);
@@ -599,6 +610,7 @@ const UI = (() => {
   let chartSeriesCache = [];  // 마지막 렌더의 시리즈 목록
   let chartSelCache = null;   // 마지막 렌더의 하이라이트 id
   let chartYFn = null;        // 마지막 렌더의 Y 스케일 (호버 점 배치용)
+  let lastHoverEv = null;     // 마지막 포인터 위치 — 1초 재렌더 후 호버 재적용용
 
   function chartData() {
     if (!hist.length) return [];
@@ -636,7 +648,6 @@ const UI = (() => {
       chartW = wrapRect.width;
       if (wrapRect.height > 40) chartH = wrapRect.height;
     }
-    if (!$('chart-tip').hidden) chartLeave(); // 재렌더 시 낡은 툴팁 잔류 방지
     svg.setAttribute('viewBox', `0 0 ${chartW} ${chartH}`);
     svg.textContent = '';
     const raw = chartData();
@@ -652,6 +663,7 @@ const UI = (() => {
       t.setAttribute('fill', '#8A8B92'); t.setAttribute('font-size', '13');
       t.textContent = '데이터 수집 중…';
       svg.append(t);
+      chartLeave();
       return;
     }
     // 도메인은 항상 전체 시리즈 기준 — 하이라이트 시에도 나머지가 흐리게 남아 보이도록
@@ -780,6 +792,11 @@ const UI = (() => {
       ch.append(cdot);
     }
     svg.append(ch);
+
+    // 포인터가 차트 위에 있으면 새 데이터에 호버를 재적용 —
+    // 정지한 커서에서도 1초 재렌더가 툴팁을 지우지 않는다
+    if (lastHoverEv && $('chart-wrap').matches(':hover')) chartHover(lastHoverEv);
+    else if (!$('chart-tip').hidden) chartLeave();
   }
 
   function chartHover(ev) {
@@ -787,6 +804,7 @@ const UI = (() => {
     const tip = $('chart-tip');
     const ch = svg.querySelector('#crosshair');
     if (!chartPts.length || !ch || !chartYFn) return;
+    lastHoverEv = { clientX: ev.clientX, clientY: ev.clientY };
     const rect = svg.getBoundingClientRect();
     const px = (ev.clientX - rect.left) / rect.width * chartW;
     let best = chartPts[0], bd = Infinity;
@@ -804,9 +822,10 @@ const UI = (() => {
 
     // 툴팁: 시각 + 모든 시리즈 값 (하이라이트가 맨 위)
     const series = chartSeriesCache, sel = chartSelCache;
+    const spanShort = chartPts[chartPts.length - 1].t - chartPts[0].t < 600000;
     tip.hidden = false;
     tip.textContent = '';
-    tip.append(el('div', 't', fmtClock(best.t)));
+    tip.append(el('div', 't', spanShort ? fmtClockSec(best.t) : fmtClock(best.t)));
     const rows = sel
       ? series.filter((s) => s.id === sel).concat(series.filter((s) => s.id !== sel))
       : series;
@@ -821,11 +840,12 @@ const UI = (() => {
     const wr = wrap.getBoundingClientRect();
     const lx = best.x / chartW * wr.width;
     tip.style.left = Math.max(70, Math.min(wr.width - 70, lx)) + 'px';
-    // 여러 행이라 위로 넘치지 않게 클램프
-    tip.style.top = Math.max(tip.offsetHeight + 14, 40) + 'px';
+    // 여러 행이라 위로 넘치지 않게 클램프 (translateY -110% 배율 반영)
+    tip.style.top = Math.max(tip.offsetHeight * 1.1 + 6, 40) + 'px';
   }
 
   function chartLeave() {
+    lastHoverEv = null;
     const ch = $('chart-svg').querySelector('#crosshair');
     if (ch) ch.setAttribute('visibility', 'hidden');
     $('chart-tip').hidden = true;
@@ -1153,6 +1173,9 @@ const UI = (() => {
 
   function renderAchTab(st) {
     const root = $('ach-content');
+    // 텍스트 선택 중에는 재구축 보류 (1초 재렌더의 선택 해제 방지)
+    const achSel = document.getSelection();
+    if (achSel && !achSel.isCollapsed && root.contains(achSel.anchorNode)) return;
     root.textContent = '';
     const defs = DATA.achievements;
     const got = defs.filter((d) => st.ach[d.id]).length;
@@ -1253,7 +1276,8 @@ const UI = (() => {
       tr.append(el('td', null, def.name));
       tr.append(el('td', 'num', fmt(st.res[r])));
       tr.append(el('td', 'num', fmt(cap[r])));
-      tr.append(el('td', 'num', fmtRate((rt.prod[r] || 0) - (rt.cons[r] || 0))));
+      tr.append(el('td', 'num',
+        fmtRate(dispNet(st, cap, r, (rt.prod[r] || 0) - (rt.cons[r] || 0)))));
       tbody.append(tr);
     }
     tbl.append(tbody);
@@ -1279,9 +1303,10 @@ const UI = (() => {
     tbl2.append(th2);
     const tb2 = el('tbody');
     const pts = chartData();
+    const tblShort = pts.length > 1 && pts[pts.length - 1].t - pts[0].t < 600000;
     for (let i = pts.length - 1; i >= 0; i--) {
       const tr = el('tr');
-      tr.append(el('td', null, fmtClock(pts[i].t)));
+      tr.append(el('td', null, tblShort ? fmtClockSec(pts[i].t) : fmtClock(pts[i].t)));
       for (const s of cols) tr.append(el('td', 'num', fmt(pts[i].v[s.id] || 0)));
       tb2.append(tr);
     }
@@ -1565,6 +1590,8 @@ const UI = (() => {
   function update(st, rt) {
     lastRates = rt;
     if (structureDirty || builtPhase !== st.phase || builtSig !== structureSig(st)) {
+      // 재구축으로 포커스된 요소(예: 방금 누른 연구 버튼)가 파괴되면 드로어 닫기 버튼으로 복원
+      const focusInDrawer = drawerTab !== null && $('drawer').contains(document.activeElement);
       builtPhase = st.phase;
       builtSig = structureSig(st);
       structureDirty = false;
@@ -1575,6 +1602,8 @@ const UI = (() => {
       buildSettingsTab(st);
       renderChart(st);
       renderLog();
+      if (focusInDrawer && !$('drawer').contains(document.activeElement))
+        $('drawer-close').focus();
     }
     updateChrome(st);
     if (activeTab === 'dash') updateDashboard(st, rt);
@@ -1608,8 +1637,15 @@ const UI = (() => {
       b.addEventListener('click', () => openDrawer(b.dataset.dtab, G.state)));
     $('drawer-close').addEventListener('click', closeDrawer);
     $('drawer-backdrop').addEventListener('click', closeDrawer);
+    // Esc/Tab 통합 처리 (document 레벨) — 오버레이 우선, 그다음 드로어.
+    // 포커스가 어디 있든 동작하고, Esc 한 번에 둘이 같이 닫히지 않는다.
     document.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Escape' && drawerTab !== null && $('overlay').hidden) closeDrawer();
+      if (!$('overlay').hidden) {
+        if (ev.key === 'Escape') { ev.preventDefault(); closeOverlay(false); }
+        else if (ev.key === 'Tab') { ev.preventDefault(); $('overlay-btn').focus(); }
+        return;
+      }
+      if (ev.key === 'Escape' && drawerTab !== null) closeDrawer();
     });
     $('chart-ranges').querySelectorAll('.chip').forEach((chip) => {
       chip.setAttribute('aria-pressed', String(chip.classList.contains('is-active')));
@@ -1629,10 +1665,6 @@ const UI = (() => {
       flashBtn($('btn-save'), G.save() ? '저장됨!' : '저장 실패');
     });
     $('overlay-btn').addEventListener('click', () => closeOverlay(true));
-    $('overlay').addEventListener('keydown', (ev) => {
-      if (ev.key === 'Escape') { ev.preventDefault(); closeOverlay(false); }
-      else if (ev.key === 'Tab') { ev.preventDefault(); $('overlay-btn').focus(); }
-    });
   }
 
   return {
