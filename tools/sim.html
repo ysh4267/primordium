@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><title>Primordium 시뮬레이션</title></head>
+<body>
+<pre id="out">실행 중…</pre>
+<script src="../js/data.js"></script>
+<script src="../js/engine.js"></script>
+<script>
+'use strict';
+/* 그리디 봇이 실제 엔진으로 풀 플레이스루를 수행하고
+ * 마일스톤/불변식 위반을 JSON으로 출력한다.
+ * (msedge --headless --dump-dom 으로 수집) */
+
+const OUT = [];
+const VIOL = [];
+const MILE = {};
+
+function assertInvariants(st, t) {
+  const cap = Engine.caps(st);
+  for (const r in st.res) {
+    const v = st.res[r];
+    if (!isFinite(v)) VIOL.push(`t=${t} ${r} NaN/Inf`);
+    if (v < -1e-6) VIOL.push(`t=${t} ${r} 음수 ${v}`);
+    if (cap[r] !== undefined && v > cap[r] + 1e-6) VIOL.push(`t=${t} ${r} 한도 초과 ${v}>${cap[r]}`);
+  }
+  if (st.pop > cap.pop) VIOL.push(`t=${t} 인구 한도 초과 ${st.pop}>${cap.pop}`);
+  let asg = 0;
+  for (const j in st.jobs) {
+    asg += st.jobs[j];
+    if (st.jobs[j] > Engine.slots(st, j)) VIOL.push(`t=${t} ${j} 슬롯 초과`);
+  }
+  if (asg > st.pop) VIOL.push(`t=${t} 배정>인구 ${asg}>${st.pop}`);
+}
+
+function mark(key, t) {
+  if (MILE[key] === undefined) MILE[key] = Math.round(t);
+}
+
+/* ---------- 진화 단계 봇 ---------- */
+function evoBot(st) {
+  // 클릭
+  if (st.evo.organelle < 5) for (let i = 0; i < 4; i++) Engine.clickRNA(st);
+  if (st.evo.nucleus < 2 && st.res.rna >= 20) for (let i = 0; i < 3; i++) Engine.clickDNA(st);
+
+  // 구매 우선순위
+  const next = Engine.chainNext(st);
+  if (next && Engine.canPay(st, next.cost)) { Engine.buyChain(st); return; }
+  const cap = Engine.caps(st);
+  // 다음 사슬 비용이 DNA 한도를 넘으면 진핵세포로 한도 확장
+  if (next && next.cost.dna > cap.dna && Engine.canPay(st, Engine.evoCost(st, 'eukaryote'))) {
+    Engine.buyEvo(st, 'eukaryote'); return;
+  }
+  if (st.evo.nucleus < 10 && Engine.canPay(st, Engine.evoCost(st, 'nucleus'))) {
+    Engine.buyEvo(st, 'nucleus'); return;
+  }
+  if (st.evo.organelle < 25 && Engine.canPay(st, Engine.evoCost(st, 'organelle'))) {
+    Engine.buyEvo(st, 'organelle'); return;
+  }
+  if (st.evo.mito < 5 && st.evo.organelle >= 10 && Engine.canPay(st, Engine.evoCost(st, 'mito'))) {
+    Engine.buyEvo(st, 'mito'); return;
+  }
+  if (cap.rna - st.res.rna < 8 && Engine.canPay(st, Engine.evoCost(st, 'membrane'))) {
+    Engine.buyEvo(st, 'membrane');
+  }
+}
+
+/* ---------- 문명 단계 봇 ---------- */
+const TECH_ORDER = ['agriculture','logging','stonecutting','storage','writing',
+  'mining','calendar','tools','irrigation','currency','architecture',
+  'scholarship','bronze','ironwork','trade','engineering'];
+
+function civBot(st, t) {
+  // 초반 수동 채집
+  if (st.pop < 6) {
+    for (let i = 0; i < 2; i++) Engine.gather(st, 'food');
+    for (let i = 0; i < 3; i++) Engine.gather(st, 'lumber');
+    for (let i = 0; i < 3; i++) Engine.gather(st, 'stone');
+  }
+
+  // 연구
+  for (const id of TECH_ORDER) {
+    if (!st.techs[id] && Engine.techVisible(st, id) && Engine.canPay(st, DATA.techs[id].cost)) {
+      Engine.research(st, id);
+      mark('tech:' + id, t);
+    }
+  }
+
+  const cap = Engine.caps(st);
+  const buy = (id) => Engine.buildingVisible(st, id) && Engine.canPay(st, Engine.bCost(st, id)) && Engine.buyBuilding(st, id);
+
+  // 건설 우선순위
+  if (st.buildings.sundial < 2) buy('sundial');
+  if (st.pop >= cap.pop - 1) {
+    if (!(st.techs.architecture && buy('house'))) buy('hut');
+  }
+  const wantFarmers = Math.ceil((st.pop + 2) * DATA.const.eatPerCitizen / (1.1 * Engine.jobMult(st, 'farmer'))) + 1;
+  if (Engine.slots(st, 'farmer') < wantFarmers) buy('farm');
+  if (Engine.slots(st, 'lumberjack') < 8) buy('camp');
+  if (Engine.slots(st, 'mason') < 8) buy('quarry');
+  if (st.techs.writing && Engine.slots(st, 'scholar') < 8) buy('school');
+  // 남은 연구의 최대 지식 비용을 감당할 때까지 도서관으로 한도 확장
+  if (st.techs.writing && cap.know < 1300 && st.buildings.school >= 2) buy('library');
+  if (st.techs.mining && Engine.slots(st, 'miner') < 6) buy('mine');
+  if (st.techs.currency && Engine.slots(st, 'merchant') < 4) buy('market');
+  // 저장고: 자원이 한도의 90%에 닿으면
+  for (const r of ['food','lumber','stone','copper','coins']) {
+    if (cap[r] && st.res[r] > cap[r] * 0.9) { buy('shed'); break; }
+  }
+  // 불가사의
+  if (Engine.wonderVisible(st) && st.wonderSeg < DATA.wonder.segments) {
+    if (Engine.canPay(st, DATA.wonder.segCost)) {
+      Engine.buyWonderSeg(st);
+      mark('wonder:' + st.wonderSeg, t);
+    }
+  }
+
+  // 일자리 재배분 (전부 해제 후 우선순위로 재배정)
+  for (const j in st.jobs) Engine.assign(st, j, -st.jobs[j]);
+  let free = st.pop;
+  const put = (j, n) => {
+    const k = Math.min(n, free, Engine.slots(st, j));
+    if (k > 0) { Engine.assign(st, j, k); free -= k; }
+  };
+  put('farmer', wantFarmers);
+  put('scholar', 99);
+  put('miner', 99);
+  put('merchant', 99);
+  put('lumberjack', Math.ceil(free / 2));
+  put('mason', 99);
+  put('lumberjack', 99); // 남으면 마저
+}
+
+/* ---------- 실행 ---------- */
+const st = Engine.newState();
+const MAX = 4 * 3600;
+let done = false;
+for (let t = 0; t < MAX; t++) {
+  if (st.phase === 'evolution') {
+    evoBot(st);
+    if (st.phase === 'civ') mark('sentience', t);
+  } else {
+    civBot(st, t);
+  }
+  Engine.tick(st, 1, null);
+  if (st.phase === 'civ' && MILE['sentience'] === undefined) mark('sentience', t);
+  if (t % 60 === 0) assertInvariants(st, t);
+  if (st.wonderSeg >= DATA.wonder.segments && !done) {
+    mark('wonder-done', t);
+    done = true;
+    // 초월 검증
+    const essence = Engine.essenceGain(st);
+    MILE['essence-gain'] = essence;
+    const st2 = Engine.ascend(st);
+    MILE['ascend-ok'] = st2 !== null && st2.essence === essence && st2.phase === 'evolution' ? 1 : 0;
+    break;
+  }
+}
+
+/* 저장/불러오기 왕복 검증 */
+const ser = Engine.serialize(st);
+const back = Engine.deserialize(ser);
+const rtA = Engine.rates(st), rtB = Engine.rates(back);
+let saveOk = 1;
+for (const r in rtA.prod)
+  if (Math.abs(rtA.prod[r] - rtB.prod[r]) > 1e-9) saveOk = 0;
+if (Math.abs(st.res.food - back.res.food) > 1e-9) saveOk = 0;
+
+/* 오프라인 진행 검증 */
+const st3 = Engine.deserialize(ser);
+const off = Engine.applyOffline(st3, 3600, []);
+assertInvariants(st3, 'offline');
+
+const result = {
+  milestones_min: Object.fromEntries(
+    Object.entries(MILE).map(([k, v]) =>
+      [k, k.startsWith('essence') || k.startsWith('ascend') ? v : +(v / 60).toFixed(1)])),
+  final: {
+    phase: st.phase, pop: st.pop, wonderSeg: st.wonderSeg,
+    techCount: Object.keys(st.techs).length,
+    buildings: st.buildings, jobs: st.jobs,
+    res: Object.fromEntries(Object.entries(st.res).map(([k, v]) => [k, Math.round(v)])),
+    cumKnow: Math.round(st.stats.cumKnow),
+  },
+  saveRoundtripOk: saveOk,
+  offlineGains: off ? Object.fromEntries(Object.entries(off.gains).map(([k, v]) => [k, Math.round(v)])) : null,
+  violations: VIOL.slice(0, 30),
+  violationCount: VIOL.length,
+};
+document.getElementById('out').textContent = 'SIM_RESULT=' + JSON.stringify(result, null, 1);
+</script>
+</body>
+</html>

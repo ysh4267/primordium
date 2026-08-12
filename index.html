@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Primordium — 진화 인크리멘탈</title>
+  <meta name="description" content="원시 수프의 RNA 한 가닥에서 문명의 불가사의까지 — 브라우저 인크리멘탈 게임">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%235B91FF'/%3E%3Cpath d='M32 12l4.5 15.5L52 32l-15.5 4.5L32 52l-4.5-15.5L12 32l15.5-4.5z' fill='white'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== 좌측 사이드바 ===== -->
+  <aside class="sidebar">
+    <div class="logo" title="Primordium">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path d="M12 3l1.9 7.1L21 12l-7.1 1.9L12 21l-1.9-7.1L3 12l7.1-1.9z" fill="#fff"/>
+      </svg>
+    </div>
+    <nav class="side-nav" aria-label="주 메뉴">
+      <button class="side-btn is-active" data-tab="dash" title="대시보드" aria-label="대시보드">
+        <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" rx="1"/></svg>
+      </button>
+      <button class="side-btn" data-tab="build" title="건설" aria-label="건설">
+        <svg viewBox="0 0 24 24"><path d="M3 21V10l6-4 6 4v11M9 21v-6h4v6M15 8l6-3v16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      </button>
+      <button class="side-btn" data-tab="research" title="연구" aria-label="연구">
+        <svg viewBox="0 0 24 24"><path d="M10 3h4M12 3v5l6 10a2 2 0 01-1.8 3H7.8A2 2 0 016 18L12 8M8.5 14h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      </button>
+      <button class="side-btn" data-tab="people" title="인구" aria-label="인구">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M16 5.5a3 3 0 010 5.5M17.5 14.2c1.7.6 2.8 2.2 3.1 4.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button class="side-btn" data-tab="records" title="기록" aria-label="기록">
+        <svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8.5 9h7M8.5 13h7M8.5 17h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      </button>
+      <button class="side-btn" data-tab="settings" title="설정" aria-label="설정">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.8v3M12 18.2v3M21.2 12h-3M5.8 12h-3M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1M18.5 18.5l-2.1-2.1M7.6 7.6L5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </nav>
+  </aside>
+
+  <!-- ===== 메인 ===== -->
+  <div class="main">
+    <header class="topbar">
+      <h1 id="tab-title">대시보드</h1>
+      <div class="topbar-right">
+        <div class="hint-chip" id="hint-chip" title="다음 목표"></div>
+        <button id="btn-save" class="pill pill-ghost" type="button">저장</button>
+        <div class="avatar" id="avatar" title="현재 단계">🦠</div>
+      </div>
+    </header>
+
+    <main id="view">
+
+      <!-- ===== 대시보드 ===== -->
+      <section class="panel is-active" id="panel-dash" aria-label="대시보드">
+        <div class="dash-grid">
+          <div class="dash-left">
+            <div class="stat-row" id="stat-row"><!-- 스탯 카드 3 --></div>
+            <div class="card card-dark chart-card">
+              <div class="chart-head">
+                <h2 id="chart-title">생산 추이</h2>
+                <div class="chip-row" id="chart-ranges" role="tablist" aria-label="차트 기간">
+                  <button class="chip" data-range="60">1분</button>
+                  <button class="chip is-active" data-range="600">10분</button>
+                  <button class="chip" data-range="3600">1시간</button>
+                  <button class="chip" data-range="0">전체</button>
+                </div>
+              </div>
+              <div class="chip-row chip-row-metric" id="chart-metrics" aria-label="차트 지표"></div>
+              <div class="chart-wrap" id="chart-wrap">
+                <svg id="chart-svg" preserveAspectRatio="none" aria-label="자원 추이 라인 차트" role="img"></svg>
+                <div class="chart-tip" id="chart-tip" hidden></div>
+              </div>
+            </div>
+            <div class="dash-bottom">
+              <div class="card activity-card">
+                <div class="card-head">
+                  <h2>활동 기록</h2>
+                  <span class="badge badge-dark" id="activity-badge">0 행동</span>
+                </div>
+                <div class="big-number" id="activity-count">0 <span class="unit">행동</span></div>
+                <div class="heatmap" id="heatmap" aria-label="최근 14분 생산 히트맵" role="img"></div>
+                <div class="heat-legend" id="heat-legend"></div>
+              </div>
+              <div class="card trending-card">
+                <div class="card-head">
+                  <h2>가속 중인 자원</h2>
+                  <span class="muted-link" data-goto="records">전체 보기</span>
+                </div>
+                <div class="trend-list" id="trend-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dash-right">
+            <div class="card portfolio-card">
+              <div class="card-head">
+                <h2 id="pf-title">내 문명</h2>
+                <span class="badge badge-blue" id="pf-essence" title="정수 보너스">✦ 0</span>
+              </div>
+              <div class="hero-number"><span id="pf-total">0</span><span class="hero-sub" id="pf-rate">+0/s</span></div>
+              <div class="gather-row" id="gather-row"><!-- 채집 버튼 --></div>
+              <h3 class="sub-head">자원 구성</h3>
+              <div class="alloc-bar" id="alloc-bar" role="img" aria-label="자원 구성 비율"></div>
+              <div class="alloc-list" id="alloc-list"></div>
+              <button class="pill pill-dark wide" data-goto="build" type="button">건설 관리</button>
+            </div>
+            <div class="card log-card">
+              <div class="card-head">
+                <h2>이벤트</h2>
+                <span class="muted-link" data-goto="records">전체 보기</span>
+              </div>
+              <div class="log-list" id="log-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 건설 / 진화 ===== -->
+      <section class="panel" id="panel-build" aria-label="건설">
+        <div id="build-content"></div>
+      </section>
+
+      <!-- ===== 연구 ===== -->
+      <section class="panel" id="panel-research" aria-label="연구">
+        <div id="research-content"></div>
+      </section>
+
+      <!-- ===== 인구 ===== -->
+      <section class="panel" id="panel-people" aria-label="인구">
+        <div id="people-content"></div>
+      </section>
+
+      <!-- ===== 기록 (통계 + 표 보기) ===== -->
+      <section class="panel" id="panel-records" aria-label="기록">
+        <div id="records-content"></div>
+      </section>
+
+      <!-- ===== 설정 ===== -->
+      <section class="panel" id="panel-settings" aria-label="설정">
+        <div id="settings-content"></div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- 전체 화면 전환 오버레이 -->
+<div class="overlay" id="overlay" hidden>
+  <div class="overlay-card" role="dialog" aria-modal="true">
+    <div class="overlay-icon" id="overlay-icon">🧠</div>
+    <h2 id="overlay-title">지성 획득</h2>
+    <p id="overlay-desc">인류가 깨어났습니다.</p>
+    <button class="pill pill-blue wide" id="overlay-btn" type="button">계속</button>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

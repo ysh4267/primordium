@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><title>중반 저장 시드 (개발용)</title></head>
+<body>
+<script src="../js/data.js"></script>
+<script src="../js/engine.js"></script>
+<script>
+'use strict';
+// 문명 단계 중반 상태를 만들어 localStorage에 심고 게임으로 이동한다.
+const st = Engine.newState();
+st.phase = 'civ';
+st.evoChain = 4;
+st.techs = { agriculture: true, logging: true, stonecutting: true, storage: true,
+  writing: true, mining: true, calendar: true };
+st.buildings.hut = 6;
+st.buildings.farm = 5;
+st.buildings.camp = 3;
+st.buildings.quarry = 2;
+st.buildings.sundial = 2;
+st.buildings.shed = 3;
+st.buildings.school = 2;
+st.buildings.library = 1;
+st.buildings.mine = 1;
+st.pop = 12;
+st.jobs = { farmer: 5, lumberjack: 3, mason: 2, miner: 1, scholar: 1, merchant: 0 };
+st.res.food = 310; st.res.lumber = 245; st.res.stone = 180;
+st.res.copper = 42; st.res.know = 96; st.res.coins = 0; st.res.iron = 0;
+st.stats.cumKnow = 640; st.stats.actions = 253; st.stats.clicks = 187;
+st.stats.playSec = 1520;
+localStorage.setItem('primordium-save', Engine.serialize(st));
+location.replace('../index.html');
+</script>
+</body>
+</html>
