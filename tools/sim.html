@@ -142,6 +142,7 @@ for (let t = 0; t < MAX; t++) {
     civBot(st, t);
   }
   Engine.tick(st, 1, null);
+  Engine.checkAchievements(st, null);
   if (st.phase === 'civ' && MILE['sentience'] === undefined) mark('sentience', t);
   if (t % 60 === 0) assertInvariants(st, t);
   if (st.wonderSeg >= DATA.wonder.segments && !done) {
@@ -209,6 +210,7 @@ const result = {
     res: Object.fromEntries(Object.entries(st.res).map(([k, v]) => [k, Math.round(v)])),
     cumKnow: Math.round(st.stats.cumKnow),
   },
+  achievements: { count: Object.keys(st.ach).length, ids: Object.keys(st.ach) },
   saveRoundtripOk: saveOk,
   offlineGains: off ? Object.fromEntries(Object.entries(off.gains).map(([k, v]) => [k, Math.round(v)])) : null,
   evilSaveDefenseOk: evilOk,

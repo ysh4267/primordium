@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <!-- ?v= 은 배포마다 올린다 — HTML과 스크립트의 캐시 버전 불일치 방지 -->
-  <link rel="stylesheet" href="css/style.css?v=4">
+  <link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
 <div class="app">
@@ -27,14 +27,14 @@
       <button class="side-btn is-active" data-tab="dash" title="대시보드" aria-label="대시보드">
         <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" rx="1"/></svg>
       </button>
-      <button class="side-btn" data-tab="build" title="건설" aria-label="건설">
-        <svg viewBox="0 0 24 24"><path d="M3 21V10l6-4 6 4v11M9 21v-6h4v6M15 8l6-3v16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
-      </button>
       <button class="side-btn" data-tab="research" title="연구" aria-label="연구">
         <svg viewBox="0 0 24 24"><path d="M10 3h4M12 3v5l6 10a2 2 0 01-1.8 3H7.8A2 2 0 016 18L12 8M8.5 14h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
       </button>
       <button class="side-btn" data-tab="people" title="인구" aria-label="인구">
         <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M16 5.5a3 3 0 010 5.5M17.5 14.2c1.7.6 2.8 2.2 3.1 4.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button class="side-btn" data-tab="ach" title="업적" aria-label="업적">
+        <svg viewBox="0 0 24 24"><path d="M8 4h8v4a4 4 0 01-8 0zM8 5H5.5c0 2.6 1.2 4 3.2 4.3M16 5h2.5c0 2.6-1.2 4-3.2 4.3M12 12v4M10 16h4M8.5 20h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
       </button>
       <button class="side-btn" data-tab="records" title="기록" aria-label="기록">
         <svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8.5 9h7M8.5 13h7M8.5 17h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
@@ -110,7 +110,7 @@
               <h3 class="sub-head">자원 구성</h3>
               <div class="alloc-bar" id="alloc-bar" role="img" aria-label="자원 구성 비율"></div>
               <div class="alloc-list" id="alloc-list"></div>
-              <button class="pill pill-dark wide" data-goto="build" type="button">건설 관리</button>
+              <button class="pill pill-dark wide" id="pf-manage" data-goto="build" type="button">건설 관리</button>
             </div>
             <div class="card log-card">
               <div class="card-head">
@@ -121,6 +121,11 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- ===== 업적 ===== -->
+      <section class="panel" id="panel-ach" aria-label="업적">
+        <div id="ach-content"></div>
       </section>
 
       <!-- ===== 기록 (통계 + 표 보기) ===== -->
@@ -177,9 +182,9 @@
   </div>
 </div>
 
-<script src="js/data.js?v=4"></script>
-<script src="js/engine.js?v=4"></script>
-<script src="js/ui.js?v=4"></script>
-<script src="js/main.js?v=4"></script>
+<script src="js/data.js?v=5"></script>
+<script src="js/engine.js?v=5"></script>
+<script src="js/ui.js?v=5"></script>
+<script src="js/main.js?v=5"></script>
 </body>
 </html>

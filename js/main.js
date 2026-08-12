@@ -90,6 +90,7 @@ const G = (() => {
       Engine.tick(state, step, evts);
       remain -= step;
     }
+    Engine.checkAchievements(state, evts);
 
     // 히트맵: 이번 틱의 총 생산량 적산
     const rt = Engine.rates(state);
@@ -158,9 +159,9 @@ const G = (() => {
     UI.update(state, Engine.rates(state));
     UI.pushHist(state);
 
-    // 딥링크: #build / #research / #people 로 드로어 바로 열기
+    // 딥링크: #build/#research/#people = 드로어, #ach/#records/#settings = 메인 탭
     const hash = location.hash.slice(1);
-    if (hash === 'build' ||
+    if (hash === 'build' || hash === 'ach' || hash === 'records' || hash === 'settings' ||
         (state.phase === 'civ' && (hash === 'research' || hash === 'people')))
       UI.switchTab(hash, state);
 

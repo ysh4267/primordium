@@ -124,6 +124,84 @@ const DATA = {
 
   tierNames: { 1: '부족 시대', 2: '고대', 3: '고전기' },
 
+  /* ---------- 업적 (초월해도 유지) ---------- */
+  achievements: [
+    // 진화
+    { id: 'first-rna',   name: '원시 수프',     icon: 'rna',
+      desc: '첫 RNA를 형성한다', when: (st) => st.res.rna >= 1 || st.evo.organelle >= 1 },
+    { id: 'organelle-1', name: '자기 조립',     icon: 'organelle',
+      desc: '세포소기관을 만든다', when: (st) => st.evo.organelle >= 1 },
+    { id: 'nucleus-1',   name: '핵심 기관',     icon: 'nucleus',
+      desc: '핵을 만든다', when: (st) => st.evo.nucleus >= 1 },
+    { id: 'membrane-10', name: '튼튼한 외벽',   icon: 'membrane',
+      desc: '세포막을 10겹 두른다', when: (st) => st.evo.membrane >= 10 },
+    { id: 'multicell',   name: '군체',          icon: 'cell',
+      desc: '다세포화에 도달한다', when: (st) => st.evoChain >= 1 },
+    { id: 'sentience',   name: '각성',          icon: 'star',
+      desc: '지성을 얻어 문명을 연다', when: (st) => st.phase === 'civ' || st.ascensions >= 1 },
+    // 문명 — 정착
+    { id: 'hut-1',       name: '정착',          icon: 'hut',
+      desc: '첫 오두막을 짓는다', when: (st) => st.buildings.hut >= 1 },
+    { id: 'pop-1',       name: '첫 시민',       icon: 'user',
+      desc: '시민을 맞이한다', when: (st) => st.pop >= 1 },
+    { id: 'pop-10',      name: '마을',          icon: 'house',
+      desc: '인구 10명을 이룬다', when: (st) => st.pop >= 10 },
+    { id: 'pop-30',      name: '도시',          icon: 'school',
+      desc: '인구 30명을 이룬다', when: (st) => st.pop >= 30 },
+    { id: 'pop-60',      name: '대도시',        icon: 'temple',
+      desc: '인구 60명을 이룬다', when: (st) => st.pop >= 60 },
+    // 문명 — 발전
+    { id: 'tech-1',      name: '불씨',          icon: 'flask',
+      desc: '첫 연구를 마친다', when: (st) => DATA._techCount(st) >= 1 },
+    { id: 'tech-8',      name: '학파',          icon: 'pen',
+      desc: '연구 8종을 마친다', when: (st) => DATA._techCount(st) >= 8 },
+    { id: 'tech-16',     name: '계몽 시대',     icon: 'scroll',
+      desc: '모든 연구를 마친다', when: (st) => DATA._techCount(st) >= 16 },
+    { id: 'built-25',    name: '개척자',        icon: 'hammer',
+      desc: '건물을 총 25채 짓는다', when: (st) => DATA._builtCount(st) >= 25 },
+    { id: 'built-60',    name: '건설왕',        icon: 'ruler',
+      desc: '건물을 총 60채 짓는다', when: (st) => DATA._builtCount(st) >= 60 },
+    { id: 'shed-10',     name: '곳간지기',      icon: 'box',
+      desc: '저장고를 10채 짓는다', when: (st) => st.buildings.shed >= 10 },
+    { id: 'library-5',   name: '장서가',        icon: 'books',
+      desc: '도서관을 5채 짓는다', when: (st) => st.buildings.library >= 5 },
+    // 문명 — 부와 지식
+    { id: 'know-5000',   name: '지식의 바다',   icon: 'drop',
+      desc: '지식을 누적 5,000 모은다', when: (st) => st.stats.cumKnow >= 5000 },
+    { id: 'coins-500',   name: '큰손',          icon: 'coin',
+      desc: '화폐 500을 보유한다', when: (st) => st.res.coins >= 500 },
+    { id: 'iron-100',    name: '철기 시대',     icon: 'gear',
+      desc: '철 100을 보유한다', when: (st) => st.res.iron >= 100 },
+    { id: 'starve-1',    name: '기근의 교훈',   icon: 'alert',
+      desc: '기아로 시민을 잃는다', when: (st) => st.stats.starved >= 1 },
+    // 손과 끈기
+    { id: 'clicks-100',  name: '부지런한 손',   icon: 'bolt',
+      desc: '100번 클릭한다', when: (st) => st.stats.clicks >= 100 },
+    { id: 'clicks-1000', name: '클릭의 달인',   icon: 'axe',
+      desc: '1,000번 클릭한다', when: (st) => st.stats.clicks >= 1000 },
+    // 정점
+    { id: 'wonder',      name: '불가사의',      icon: 'temple',
+      desc: '대신전을 완공한다', when: (st) => st.wonderSeg >= 20 },
+    { id: 'ascend-1',    name: '초월자',        icon: 'star',
+      desc: '처음으로 초월한다', when: (st) => st.ascensions >= 1 },
+    { id: 'ascend-3',    name: '윤회',          icon: 'moon',
+      desc: '세 번 초월한다', when: (st) => st.ascensions >= 3 },
+    { id: 'essence-20',  name: '정수 수집가',   icon: 'gem',
+      desc: '정수 20을 모은다', when: (st) => st.essence >= 20 },
+  ],
+
+  // 업적 조건용 헬퍼
+  _techCount: (st) => {
+    let n = 0;
+    for (const t in st.techs) if (st.techs[t]) n++;
+    return n;
+  },
+  _builtCount: (st) => {
+    let n = 0;
+    for (const b in st.buildings) n += st.buildings[b];
+    return n;
+  },
+
   /* ---------- 상수 ---------- */
   const: {
     eatPerCitizen: 0.35,     // 시민 1인당 식량 소비 /s

@@ -107,6 +107,8 @@ const UI = (() => {
     disk: 'M5 4h11l3 3v13H5z|M8 4v5h7V4|M8 20v-6h8v6',
     flask: 'M10 3h4|M12 3v5l6 10a2 2 0 01-1.8 3H7.8A2 2 0 016 18l6-10|M8.5 14h7',
     download: 'M12 4v10|M8 10l4 4 4-4|M5 19h14',
+    trophy: 'M8 4h8v4a4 4 0 01-8 0z|M8 5H5.5c0 2.6 1.2 4 3.2 4.3M16 5h2.5c0 2.6-1.2 4-3.2 4.3|M12 12v4|M10 16h4|M8.5 20h7',
+    lock: 'M7 11h10v9H7z|M9 11V8a3 3 0 016 0v3',
   };
 
   function icon(name, size = 18) {
@@ -213,7 +215,7 @@ const UI = (() => {
   /* ---------- 탭 ---------- */
 
   const TAB_TITLES = {
-    dash: '대시보드', records: '기록', settings: '설정',
+    dash: '대시보드', ach: '업적', records: '기록', settings: '설정',
   };
   // 자주 쓰는 관리 항목은 메인 화면을 떠나지 않는 사이드 드로어로 연다
   const DRAWER_TABS = ['build', 'research', 'people'];
@@ -267,6 +269,7 @@ const UI = (() => {
       p.classList.toggle('is-active', p.id === 'panel-' + tab));
     $('tab-title').textContent = TAB_TITLES[tab];
     if (tab === 'records') renderRecordsTab(st, lastRates); // 1초 대기 없이 즉시 표시
+    if (tab === 'ach') renderAchTab(st);
     if (tab === 'dash') renderChart(st);
     update(st, lastRates);
   }
@@ -1059,6 +1062,55 @@ const UI = (() => {
   }
 
   /* ================================================================
+   * 업적 탭
+   * ================================================================ */
+
+  function fmtDate(ts) {
+    const d = new Date(ts);
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 ${fmtClock(ts)}`;
+  }
+
+  function renderAchTab(st) {
+    const root = $('ach-content');
+    root.textContent = '';
+    const defs = DATA.achievements;
+    const got = defs.filter((d) => st.ach[d.id]).length;
+
+    // 요약 카드
+    const sum = el('div', 'card ach-summary');
+    const head = el('div', 'card-head');
+    head.append(el('h2', null, '달성 현황'),
+      el('span', 'badge badge-blue', `${Math.round(got / defs.length * 100)}%`));
+    const big = el('div', 'big-number');
+    big.append(document.createTextNode(`${got} `), el('span', 'unit', `/ ${defs.length}`));
+    const prog = el('div', 'wonder-progress');
+    const fill = el('div', 'fill');
+    fill.style.width = (got / defs.length * 100) + '%';
+    prog.append(fill);
+    sum.append(head, big, prog);
+    root.append(sum);
+
+    // 업적 그리드 (달성 먼저, 정의 순서 유지)
+    const grid = el('div', 'build-grid ach-grid');
+    grid.style.marginTop = '18px';
+    const sorted = defs.slice().sort((a, b) => (st.ach[b.id] ? 1 : 0) - (st.ach[a.id] ? 1 : 0));
+    for (const d of sorted) {
+      const doneAt = st.ach[d.id];
+      const card = el('div', 'card item-card ach-card' + (doneAt ? ' is-done' : ''));
+      const top = el('div', 'item-top');
+      const ic = el('div', 'item-icon ach-icon');
+      ic.append(icon(doneAt ? d.icon : 'lock', 19));
+      const nm = el('div');
+      nm.append(el('div', 'item-name', d.name),
+        el('div', 'item-count', doneAt ? fmtDate(doneAt) + ' 달성' : '미달성'));
+      top.append(ic, nm);
+      card.append(top, el('div', 'item-desc', d.desc));
+      grid.append(card);
+    }
+    root.append(grid);
+  }
+
+  /* ================================================================
    * 기록 탭 (통계 + 표 보기 = 차트의 접근성 트윈)
    * ================================================================ */
 
@@ -1289,6 +1341,7 @@ const UI = (() => {
   const LOG_ICONS = {
     build: 'hammer', tech: 'flask', pop: 'user', warn: 'alert',
     phase: 'star', wonder: 'temple', ascend: 'star', gain: 'moon', save: 'disk',
+    ach: 'trophy',
   };
 
   function log(evts) {
@@ -1371,6 +1424,7 @@ const UI = (() => {
       if (t === 'build')
         b.textContent = st.phase === 'evolution' ? '진화' : '건설';
     });
+    $('pf-manage').textContent = st.phase === 'evolution' ? '진화 관리' : '건설 관리';
   }
 
   let overlayCb = null;
@@ -1450,6 +1504,7 @@ const UI = (() => {
   function updateSlow(st) {
     if (activeTab === 'dash') renderChart(st);
     if (activeTab === 'records') renderRecordsTab(st, lastRates);
+    if (activeTab === 'ach') renderAchTab(st);
   }
 
   /* ---------- 초기 바인딩 ---------- */

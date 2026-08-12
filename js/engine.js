@@ -25,6 +25,7 @@ const Engine = (() => {
       res, evo, buildings, jobs,
       evoChain: 0,
       techs: {},
+      ach: {},             // 업적 id → 달성 시각(ms). 초월해도 유지.
       wonderSeg: 0,
       pop: 0,
       growthT: 0,
@@ -33,6 +34,7 @@ const Engine = (() => {
         cumKnow: 0,        // 이번 회차 누적 지식 (정수 계산용)
         actions: 0,        // 총 행동(클릭+구매+연구)
         clicks: 0,
+        starved: 0,        // 기아 사망 누계 (업적용)
         playSec: 0,
         startedAt: lifetime ? lifetime.startedAt : Date.now(),
       },
@@ -193,6 +195,7 @@ const Engine = (() => {
         if (st.starveT >= C.starveTime) {
           st.starveT = 0;
           st.pop -= 1;
+          st.stats.starved += 1;
           // 배정 인원이 인구를 넘으면 해제 (농부 보호 순서)
           while (assignedTotal(st) > st.pop) { if (!fireOne(st)) break; }
           if (evts) evts.push({ kind: 'warn', title: '기아 발생', sub: `시민 1명 사망 — 식량을 확보하세요` });
@@ -350,8 +353,26 @@ const Engine = (() => {
     if (!canAscend(st)) return null;
     const gained = essenceGain(st);
     const next = newState(st.essence + gained, st.ascensions + 1, st.stats);
+    next.ach = st.ach; // 업적은 초월을 넘어 유지
     if (evts) evts.push({ kind: 'ascend', title: '초월', sub: `정수 +${gained} (총 ${next.essence})` });
     return next;
+  }
+
+  /* ---------- 업적 ---------- */
+
+  function checkAchievements(st, evts) {
+    let gained = 0;
+    for (const d of DATA.achievements) {
+      if (st.ach[d.id]) continue;
+      let ok = false;
+      try { ok = !!d.when(st); } catch (e) { /* 조건 오류는 미달성 취급 */ }
+      if (ok) {
+        st.ach[d.id] = Date.now();
+        gained++;
+        if (evts) evts.push({ kind: 'ach', title: `업적 달성 — ${d.name}`, sub: d.desc });
+      }
+    }
+    return gained;
   }
 
   /* ---------- 오프라인 진행 ---------- */
@@ -389,12 +410,24 @@ const Engine = (() => {
     const st = newState();
     if (isPlainObj(raw)) {
       merge(st, raw);
-      // techs는 키가 열려 있으므로 별도 화이트리스트 복사
+      // techs/ach는 키가 열려 있으므로 별도 화이트리스트 복사
       if (isPlainObj(raw.techs)) {
         st.techs = {};
         for (const k in raw.techs) {
           if (!hasOwn(raw.techs, k)) continue;
           if (DATA.techs[k] && raw.techs[k]) st.techs[k] = true;
+        }
+      }
+      if (isPlainObj(raw.ach)) {
+        st.ach = {};
+        const known = {};
+        for (const d of DATA.achievements) known[d.id] = true;
+        for (const k in raw.ach) {
+          if (!hasOwn(raw.ach, k)) continue;
+          if (known[k] && raw.ach[k]) {
+            const t = Number(raw.ach[k]);
+            st.ach[k] = isFinite(t) && t > 0 ? t : Date.now();
+          }
         }
       }
     }
@@ -426,7 +459,7 @@ const Engine = (() => {
   // caps() 계산 **이전에** 모든 입력을 유한 비음수로 강제한 뒤 클램프한다.
   function sanitize(st) {
     const fresh = newState();
-    for (const k of ['res', 'evo', 'buildings', 'jobs', 'stats', 'techs']) {
+    for (const k of ['res', 'evo', 'buildings', 'jobs', 'stats', 'techs', 'ach']) {
       if (!isPlainObj(st[k])) st[k] = fresh[k];
     }
     // 알 수 없는 키 제거 + 숫자 강제
@@ -449,6 +482,7 @@ const Engine = (() => {
     st.stats.cumKnow = numOr0(st.stats.cumKnow, 1e15);
     st.stats.actions = intOr0(st.stats.actions, 1e15);
     st.stats.clicks = intOr0(st.stats.clicks, 1e15);
+    st.stats.starved = intOr0(st.stats.starved, 1e15);
     st.stats.playSec = numOr0(st.stats.playSec, 1e12);
     st.stats.startedAt = numOr0(st.stats.startedAt) || Date.now();
     st.lastSave = numOr0(st.lastSave) || Date.now();
@@ -471,7 +505,7 @@ const Engine = (() => {
     bCost, buildingVisible, buyBuilding,
     techVisible, research, canPay,
     wonderVisible, buyWonderSeg,
-    canAscend, essenceGain, ascend,
+    canAscend, essenceGain, ascend, checkAchievements,
     applyOffline, serialize, deserialize, sanitize,
   };
 })();
