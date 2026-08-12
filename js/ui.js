@@ -213,19 +213,59 @@ const UI = (() => {
   /* ---------- 탭 ---------- */
 
   const TAB_TITLES = {
-    dash: '대시보드', build: '건설', research: '연구',
-    people: '인구', records: '기록', settings: '설정',
+    dash: '대시보드', records: '기록', settings: '설정',
   };
+  // 자주 쓰는 관리 항목은 메인 화면을 떠나지 않는 사이드 드로어로 연다
+  const DRAWER_TABS = ['build', 'research', 'people'];
   let activeTab = 'dash';
+  let drawerTab = null; // null = 닫힘
+  let drawerPrevFocus = null;
+
+  function syncSideActive() {
+    document.querySelectorAll('.side-btn').forEach((b) =>
+      b.classList.toggle('is-active',
+        drawerTab ? b.dataset.tab === drawerTab : b.dataset.tab === activeTab));
+  }
+
+  function openDrawer(tab, st) {
+    st = st || G.state;
+    const wasClosed = drawerTab === null;
+    drawerTab = tab;
+    if (wasClosed) drawerPrevFocus = document.activeElement;
+    $('drawer').hidden = false;
+    $('drawer-backdrop').hidden = false;
+    document.querySelectorAll('#drawer .panel').forEach((p) =>
+      p.classList.toggle('is-active', p.id === 'panel-' + tab));
+    document.querySelectorAll('.dtab').forEach((b) =>
+      b.classList.toggle('is-active', b.dataset.dtab === tab));
+    syncSideActive();
+    if (wasClosed) $('drawer-close').focus();
+    update(st, Engine.rates(st));
+  }
+
+  function closeDrawer() {
+    if (drawerTab === null) return;
+    drawerTab = null;
+    $('drawer').hidden = true;
+    $('drawer-backdrop').hidden = true;
+    syncSideActive();
+    if (drawerPrevFocus && drawerPrevFocus.isConnected) drawerPrevFocus.focus();
+    drawerPrevFocus = null;
+  }
 
   function switchTab(tab, st) {
+    if (DRAWER_TABS.indexOf(tab) >= 0) {
+      // 같은 탭 아이콘을 다시 누르면 토글로 닫힘
+      if (drawerTab === tab) closeDrawer();
+      else openDrawer(tab, st);
+      return;
+    }
+    closeDrawer();
     activeTab = tab;
-    document.querySelectorAll('.side-btn').forEach((b) =>
-      b.classList.toggle('is-active', b.dataset.tab === tab));
-    document.querySelectorAll('.panel').forEach((p) =>
+    syncSideActive();
+    document.querySelectorAll('#view .panel').forEach((p) =>
       p.classList.toggle('is-active', p.id === 'panel-' + tab));
-    $('tab-title').textContent =
-      tab === 'build' && st.phase === 'evolution' ? '진화' : TAB_TITLES[tab];
+    $('tab-title').textContent = TAB_TITLES[tab];
     if (tab === 'records') renderRecordsTab(st, lastRates); // 1초 대기 없이 즉시 표시
     if (tab === 'dash') renderChart(st);
     update(st, lastRates);
@@ -1318,11 +1358,18 @@ const UI = (() => {
       av.textContent = '';
       av.append(icon(avIcon, 20));
     }
-    // 진화 단계에서는 연구/인구 탭 숨김
+    // 진화 단계에서는 연구/인구 숨김 (사이드바 아이콘 + 드로어 탭)
     document.querySelectorAll('.side-btn').forEach((b) => {
       const t = b.dataset.tab;
       if (t === 'research' || t === 'people')
         b.style.display = st.phase === 'evolution' ? 'none' : '';
+    });
+    document.querySelectorAll('.dtab').forEach((b) => {
+      const t = b.dataset.dtab;
+      if (t === 'research' || t === 'people')
+        b.style.display = st.phase === 'evolution' ? 'none' : '';
+      if (t === 'build')
+        b.textContent = st.phase === 'evolution' ? '진화' : '건설';
     });
   }
 
@@ -1392,10 +1439,11 @@ const UI = (() => {
     }
     updateChrome(st);
     if (activeTab === 'dash') updateDashboard(st, rt);
-    if (activeTab === 'build') updateBuildTab(st);
-    if (activeTab === 'research') updateResearchTab(st);
-    if (activeTab === 'people') updatePeopleTab(st);
     if (activeTab === 'settings') updateSettingsTab(st);
+    // 드로어는 메인 탭과 독립적으로 갱신 — 대시보드가 뒤에서 계속 살아 있다
+    if (drawerTab === 'build') updateBuildTab(st);
+    if (drawerTab === 'research') updateResearchTab(st);
+    if (drawerTab === 'people') updatePeopleTab(st);
   }
 
   // 1초 주기 갱신(차트/기록처럼 무거운 것)
@@ -1410,7 +1458,19 @@ const UI = (() => {
     document.querySelectorAll('.side-btn').forEach((b) =>
       b.addEventListener('click', () => switchTab(b.dataset.tab, G.state)));
     document.querySelectorAll('[data-goto]').forEach((b) =>
-      b.addEventListener('click', () => switchTab(b.dataset.goto, G.state)));
+      b.addEventListener('click', () => {
+        const t = b.dataset.goto;
+        if (DRAWER_TABS.indexOf(t) >= 0) openDrawer(t, G.state);
+        else switchTab(t, G.state);
+      }));
+    // 드로어: 탭 전환 / 닫기 / 백드롭 / Esc
+    document.querySelectorAll('.dtab').forEach((b) =>
+      b.addEventListener('click', () => openDrawer(b.dataset.dtab, G.state)));
+    $('drawer-close').addEventListener('click', closeDrawer);
+    $('drawer-backdrop').addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && drawerTab !== null && $('overlay').hidden) closeDrawer();
+    });
     $('chart-ranges').querySelectorAll('.chip').forEach((chip) => {
       chip.setAttribute('aria-pressed', String(chip.classList.contains('is-active')));
       chip.addEventListener('click', () => {

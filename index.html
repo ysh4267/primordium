@@ -122,21 +122,6 @@
         </div>
       </section>
 
-      <!-- ===== 건설 / 진화 ===== -->
-      <section class="panel" id="panel-build" aria-label="건설">
-        <div id="build-content"></div>
-      </section>
-
-      <!-- ===== 연구 ===== -->
-      <section class="panel" id="panel-research" aria-label="연구">
-        <div id="research-content"></div>
-      </section>
-
-      <!-- ===== 인구 ===== -->
-      <section class="panel" id="panel-people" aria-label="인구">
-        <div id="people-content"></div>
-      </section>
-
       <!-- ===== 기록 (통계 + 표 보기) ===== -->
       <section class="panel" id="panel-records" aria-label="기록">
         <div id="records-content"></div>
@@ -150,6 +135,36 @@
     </main>
   </div>
 </div>
+
+<!-- ===== 빠른 관리 드로어 (건설/연구/인구) ===== -->
+<div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+<aside class="drawer" id="drawer" aria-label="빠른 관리 패널" hidden>
+  <div class="drawer-head">
+    <div class="drawer-tabs" id="drawer-tabs">
+      <button class="dtab is-active" data-dtab="build" type="button">건설</button>
+      <button class="dtab" data-dtab="research" type="button">연구</button>
+      <button class="dtab" data-dtab="people" type="button">인구</button>
+    </div>
+    <button class="drawer-close" id="drawer-close" type="button" aria-label="패널 닫기">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+
+  <!-- 건설 / 진화 -->
+  <section class="panel is-active" id="panel-build" aria-label="건설">
+    <div id="build-content"></div>
+  </section>
+
+  <!-- 연구 -->
+  <section class="panel" id="panel-research" aria-label="연구">
+    <div id="research-content"></div>
+  </section>
+
+  <!-- 인구 -->
+  <section class="panel" id="panel-people" aria-label="인구">
+    <div id="people-content"></div>
+  </section>
+</aside>
 
 <!-- 전체 화면 전환 오버레이 -->
 <div class="overlay" id="overlay" hidden>

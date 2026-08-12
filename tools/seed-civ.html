@@ -28,7 +28,7 @@ st.res.copper = 42; st.res.know = 96; st.res.coins = 0; st.res.iron = 0;
 st.stats.cumKnow = 640; st.stats.actions = 253; st.stats.clicks = 187;
 st.stats.playSec = 1520;
 localStorage.setItem('primordium-save', Engine.serialize(st));
-location.replace('../index.html');
+location.replace('../index.html' + location.hash);
 </script>
 </body>
 </html>

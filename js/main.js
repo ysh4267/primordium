@@ -158,6 +158,12 @@ const G = (() => {
     UI.update(state, Engine.rates(state));
     UI.pushHist(state);
 
+    // 딥링크: #build / #research / #people 로 드로어 바로 열기
+    const hash = location.hash.slice(1);
+    if (hash === 'build' ||
+        (state.phase === 'civ' && (hash === 'research' || hash === 'people')))
+      UI.switchTab(hash, state);
+
     lastTick = performance.now();
     setInterval(loop, 250);
     window.addEventListener('beforeunload', save);
