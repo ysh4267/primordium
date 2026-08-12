@@ -242,59 +242,32 @@ const UI = (() => {
   /* ---------- 탭 ---------- */
 
   const TAB_TITLES = {
-    dash: '대시보드', ach: '업적', records: '기록', settings: '설정',
+    dash: '대시보드', build: '건설', research: '연구', people: '인구',
+    ach: '업적', records: '기록', settings: '설정',
   };
-  // 자주 쓰는 관리 항목은 메인 화면을 떠나지 않는 사이드 드로어로 연다
-  const DRAWER_TABS = ['build', 'research', 'people'];
   let activeTab = 'dash';
-  let drawerTab = null; // null = 닫힘
-  let drawerPrevFocus = null;
 
-  function syncSideActive() {
-    document.querySelectorAll('.side-btn').forEach((b) =>
-      b.classList.toggle('is-active',
-        drawerTab ? b.dataset.tab === drawerTab : b.dataset.tab === activeTab));
-  }
-
-  function openDrawer(tab, st) {
-    st = st || G.state;
-    const wasClosed = drawerTab === null;
-    drawerTab = tab;
-    if (wasClosed) drawerPrevFocus = document.activeElement;
-    $('drawer').hidden = false;
-    $('drawer-backdrop').hidden = false;
-    document.querySelectorAll('#drawer .panel').forEach((p) =>
-      p.classList.toggle('is-active', p.id === 'panel-' + tab));
-    document.querySelectorAll('.dtab').forEach((b) =>
-      b.classList.toggle('is-active', b.dataset.dtab === tab));
-    syncSideActive();
-    if (wasClosed) $('drawer-close').focus();
-    update(st, Engine.rates(st));
-  }
-
-  function closeDrawer() {
-    if (drawerTab === null) return;
-    drawerTab = null;
-    $('drawer').hidden = true;
-    $('drawer-backdrop').hidden = true;
-    syncSideActive();
-    if (drawerPrevFocus && drawerPrevFocus.isConnected) drawerPrevFocus.focus();
-    drawerPrevFocus = null;
+  // '내 문명' 카드(채집 클릭 UI 포함)를 활성 탭의 우측 컬럼으로 옮긴다 —
+  // 대시보드/건설/연구/인구 어디서든 같은 위치에서 클릭 생산이 가능하다.
+  function placePortfolio(tab) {
+    const card = document.querySelector('.portfolio-card');
+    if (!card) return;
+    const anchors = { build: 'build-side', research: 'research-side', people: 'people-side' };
+    if (anchors[tab]) $(anchors[tab]).append(card);
+    else $('dash-side').prepend(card);
+    // 건설 탭에서는 '건설 관리' 이동 버튼이 무의미하므로 숨김
+    $('pf-manage').style.display = tab === 'build' ? 'none' : '';
   }
 
   function switchTab(tab, st) {
-    if (DRAWER_TABS.indexOf(tab) >= 0) {
-      // 같은 탭 아이콘을 다시 누르면 토글로 닫힘
-      if (drawerTab === tab) closeDrawer();
-      else openDrawer(tab, st);
-      return;
-    }
-    closeDrawer();
     activeTab = tab;
-    syncSideActive();
+    document.querySelectorAll('.side-btn').forEach((b) =>
+      b.classList.toggle('is-active', b.dataset.tab === tab));
     document.querySelectorAll('#view .panel').forEach((p) =>
       p.classList.toggle('is-active', p.id === 'panel-' + tab));
-    $('tab-title').textContent = TAB_TITLES[tab];
+    $('tab-title').textContent =
+      tab === 'build' && st.phase === 'evolution' ? '진화' : TAB_TITLES[tab];
+    placePortfolio(tab);
     if (tab === 'records') renderRecordsTab(st, lastRates); // 1초 대기 없이 즉시 표시
     if (tab === 'ach') {
       renderAchTab(st);
@@ -1781,18 +1754,18 @@ const UI = (() => {
       av.textContent = '';
       av.append(icon(avIcon, 20));
     }
-    // 진화 단계에서는 연구/인구 숨김 (사이드바 아이콘 + 드로어 탭)
+    // 진화 단계에서는 연구/인구 탭 숨김, 건설 탭 라벨은 '진화'
     document.querySelectorAll('.side-btn').forEach((b) => {
       const t = b.dataset.tab;
       if (t === 'research' || t === 'people')
         b.style.display = st.phase === 'evolution' ? 'none' : '';
-    });
-    document.querySelectorAll('.dtab').forEach((b) => {
-      const t = b.dataset.dtab;
-      if (t === 'research' || t === 'people')
-        b.style.display = st.phase === 'evolution' ? 'none' : '';
-      if (t === 'build')
-        b.textContent = st.phase === 'evolution' ? '진화' : '건설';
+      if (t === 'build') {
+        const lbl = b.querySelector('.side-label');
+        const name = st.phase === 'evolution' ? '진화' : '건설';
+        if (lbl && lbl.textContent !== name) lbl.textContent = name;
+        b.title = name;
+        b.setAttribute('aria-label', name);
+      }
     });
     $('pf-manage').textContent = st.phase === 'evolution' ? '진화 관리' : '건설 관리';
     // 미확인 업적 점 배지
@@ -1854,8 +1827,6 @@ const UI = (() => {
   function update(st, rt) {
     lastRates = rt;
     if (structureDirty || builtPhase !== st.phase || builtSig !== structureSig(st)) {
-      // 재구축으로 포커스된 요소(예: 방금 누른 연구 버튼)가 파괴되면 드로어 닫기 버튼으로 복원
-      const focusInDrawer = drawerTab !== null && $('drawer').contains(document.activeElement);
       builtPhase = st.phase;
       builtSig = structureSig(st);
       structureDirty = false;
@@ -1866,16 +1837,14 @@ const UI = (() => {
       buildSettingsTab(st);
       renderChart(st);
       renderLog();
-      if (focusInDrawer && !$('drawer').contains(document.activeElement))
-        $('drawer-close').focus();
     }
     updateChrome(st);
-    if (activeTab === 'dash') updateDashboard(st, rt);
+    // 어느 탭이든 '내 문명' 카드가 따라다니므로 대시보드 값은 항상 갱신
+    updateDashboard(st, rt);
     if (activeTab === 'settings') updateSettingsTab(st);
-    // 드로어는 메인 탭과 독립적으로 갱신 — 대시보드가 뒤에서 계속 살아 있다
-    if (drawerTab === 'build') updateBuildTab(st);
-    if (drawerTab === 'research') updateResearchTab(st);
-    if (drawerTab === 'people') updatePeopleTab(st);
+    if (activeTab === 'build') updateBuildTab(st);
+    if (activeTab === 'research') updateResearchTab(st);
+    if (activeTab === 'people') updatePeopleTab(st);
   }
 
   // 1초 주기 갱신(차트/기록처럼 무거운 것)
@@ -1891,25 +1860,12 @@ const UI = (() => {
     document.querySelectorAll('.side-btn').forEach((b) =>
       b.addEventListener('click', () => switchTab(b.dataset.tab, G.state)));
     document.querySelectorAll('[data-goto]').forEach((b) =>
-      b.addEventListener('click', () => {
-        const t = b.dataset.goto;
-        if (DRAWER_TABS.indexOf(t) >= 0) openDrawer(t, G.state);
-        else switchTab(t, G.state);
-      }));
-    // 드로어: 탭 전환 / 닫기 / 백드롭 / Esc
-    document.querySelectorAll('.dtab').forEach((b) =>
-      b.addEventListener('click', () => openDrawer(b.dataset.dtab, G.state)));
-    $('drawer-close').addEventListener('click', closeDrawer);
-    $('drawer-backdrop').addEventListener('click', closeDrawer);
-    // Esc/Tab 통합 처리 (document 레벨) — 오버레이 우선, 그다음 드로어.
-    // 포커스가 어디 있든 동작하고, Esc 한 번에 둘이 같이 닫히지 않는다.
+      b.addEventListener('click', () => switchTab(b.dataset.goto, G.state)));
+    // 오버레이 Esc/Tab 처리 (document 레벨 — 포커스 위치와 무관하게 동작)
     document.addEventListener('keydown', (ev) => {
-      if (!$('overlay').hidden) {
-        if (ev.key === 'Escape') { ev.preventDefault(); closeOverlay(false); }
-        else if (ev.key === 'Tab') { ev.preventDefault(); $('overlay-btn').focus(); }
-        return;
-      }
-      if (ev.key === 'Escape' && drawerTab !== null) closeDrawer();
+      if ($('overlay').hidden) return;
+      if (ev.key === 'Escape') { ev.preventDefault(); closeOverlay(false); }
+      else if (ev.key === 'Tab') { ev.preventDefault(); $('overlay-btn').focus(); }
     });
     $('chart-ranges').querySelectorAll('.chip').forEach((chip) => {
       chip.setAttribute('aria-pressed', String(chip.classList.contains('is-active')));
