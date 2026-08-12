@@ -3,7 +3,7 @@
 원시 수프의 RNA 한 가닥에서 문명의 불가사의까지 성장하는 브라우저 인크리멘탈 게임.
 [Evolve](https://pmotschmann.github.io/Evolve/)에서 영감을 받았습니다.
 
-**▶ 플레이: https://ysh4267.github.io/primordium/**
+**플레이: https://ysh4267.github.io/primordium/**
 
 ## 진행
 

@@ -34,6 +34,12 @@ const UI = (() => {
     return `${ap} ${h}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 
+  function fmtClockSec(ts) {
+    const d = new Date(ts);
+    const h = d.getHours() % 12 || 12;
+    return `${h}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+  }
+
   function fmtDur(sec) {
     sec = Math.floor(sec);
     const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
@@ -51,6 +57,79 @@ const UI = (() => {
     if (cls) e.className = cls;
     if (text !== undefined) e.textContent = text;
     return e;
+  }
+
+  /* ---------- SVG 아이콘 (24×24 스트로크 — 사이드바와 동일한 스타일) ---------- */
+
+  const svgNSi = 'http://www.w3.org/2000/svg';
+  // 'F:' 접두 = fill, 그 외 stroke. '|'로 다중 패스.
+  const ICONS = {
+    wheat: 'M12 21v-8|M12 13c0-4 3-6 7-6-1 4-3 6-7 6z|M12 13c0-4-3-6-7-6 1 4 3 6 7 6z',
+    sprout: 'M12 21v-8|M12 13c0-4 3-6 7-6-1 4-3 6-7 6z|M12 13c0-4-3-6-7-6 1 4 3 6 7 6z',
+    tree: 'M12 21v-4|M12 3L5.5 17h13z',
+    axe: 'M5 19L15 9|M13 5l6 6-3 1-4-4z',
+    stone: 'M7 19h10l3-6-4-8H9L4 13z',
+    pick: 'M4 20l9-9|M5 9c4-4 10-4 14 0|M5 9l2 1M19 9l-2 1',
+    ingot: 'M6 9h12l2 6H4z|M9 12h6',
+    gear: 'M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7|M12 3v3M12 18v3M21 12h-3M6 12H3M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1M18.4 18.4l-2.1-2.1M7.7 7.7L5.6 5.6',
+    scroll: 'M7 4h11v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z|M9 9h7M9 13h7',
+    coin: 'M12 5a7 7 0 100 14 7 7 0 000-14|M9.5 10.5h5M9.5 13.5h5',
+    rna: 'M9 3c-3 4 7 6 4 10s-6 4-4 8|M14 6l2 .5M12 12l2 .5M11 18l2 .5',
+    dna: 'M8 3c0 5 8 7 8 12M16 3c0 5-8 7-8 12|M9 7h6M9 16h6',
+    cell: 'M12 4a8 8 0 100 16 8 8 0 000-16|F:M13.5 11a2.5 2.5 0 100 5 2.5 2.5 0 000-5|F:M9 8.5a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4',
+    membrane: 'M12 4a8 8 0 100 16 8 8 0 000-16|M12 7a5 5 0 100 10 5 5 0 000-10',
+    organelle: 'M12 4a8 8 0 100 16 8 8 0 000-16|F:M9 9a1.4 1.4 0 100 2.8A1.4 1.4 0 009 9|F:M14 12a1.4 1.4 0 100 2.8 1.4 1.4 0 000-2.8|F:M12.5 7.2a1 1 0 100 2 1 1 0 000-2',
+    nucleus: 'M12 4a8 8 0 100 16 8 8 0 000-16|F:M12 9a3 3 0 100 6 3 3 0 000-6',
+    eukaryote: 'M12 4a8 8 0 100 16 8 8 0 000-16|M8.5 12a3.5 2.5 0 107 0 3.5 2.5 0 00-7 0',
+    mito: 'M4.5 12a7.5 4.8 0 1015 0 7.5 4.8 0 00-15 0|M7.5 12c1-1.8 2 1.8 3 0s2 1.8 3 0 2 1.8 3 0',
+    star: 'F:M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z',
+    hut: 'M5 12c0-5 3.5-8 7-8s7 3 7 8|M6 12v8h12v-8|M10 20v-5h4v5',
+    house: 'M4 11l8-7 8 7|M6 9.5V20h12V9.5|M10 20v-5h4v5',
+    tent: 'M12 4L3 20h7l2-5 2 5h7z',
+    clock: 'M12 4a8 8 0 100 16 8 8 0 000-16|M12 7.5V12l3 2',
+    box: 'M4 8l8-4 8 4v8l-8 4-8-4z|M4 8l8 4 8-4M12 12v8',
+    school: 'M3 20h18|M5 20V9l7-5 7 5v11|M10 20v-6h4v6',
+    books: 'M5 4h4v16H5z|M11 4h4v16h-4z|M17 5l3 .8L17.5 20l-3-.8',
+    mountain: 'M3 20L10 7l4 7 3-4 4 10z',
+    store: 'M5 8l1.2-4h11.6L19 8|M4 8h16|M5 8v12h14V8|M9 20v-6h6v6',
+    temple: 'M4 20h16|M5 17h14|M7 9v8M12 9v8M17 9v8|M4 9h16L12 3z',
+    pen: 'M4 20l1-4L16 5l3 3L8 19z|M14 7l3 3',
+    hammer: 'M4 20l7-7|M10 6l2-2 6 6-2 2z|M12 8l4 4',
+    drop: 'M12 3c4 5 6 8 6 11a6 6 0 01-12 0c0-3 2-6 6-11z',
+    ship: 'M4 16h16l-2 4H6z|M12 16V5|M12 5c4 1 6 4 6 8h-6z',
+    ruler: 'M3 17L17 3l4 4L7 21z|M8 16l1.5 1.5M11 13l1.5 1.5M14 10l1.5 1.5',
+    calendar: 'M5 6h14v14H5z|M5 10h14|M8 4v4M16 4v4',
+    gem: 'M7 4h10l4 6-9 10-9-10z|M3 10h18|M12 20L8 10l4-6 4 6z',
+    user: 'M12 4.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7|M5 20c1-4 4-6 7-6s6 2 7 6',
+    alert: 'M12 4L2.5 20h19z|M12 10v4.5|M12 17.2v.6',
+    bolt: 'M13 3L5 14h5l-1 7 8-11h-5z',
+    moon: 'M20 13A8 8 0 1111 4a6.5 6.5 0 009 9z',
+    disk: 'M5 4h11l3 3v13H5z|M8 4v5h7V4|M8 20v-6h8v6',
+    flask: 'M10 3h4|M12 3v5l6 10a2 2 0 01-1.8 3H7.8A2 2 0 016 18l6-10|M8.5 14h7',
+    download: 'M12 4v10|M8 10l4 4 4-4|M5 19h14',
+  };
+
+  function icon(name, size = 18) {
+    const svg = document.createElementNS(svgNSi, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', size);
+    svg.setAttribute('height', size);
+    svg.setAttribute('aria-hidden', 'true');
+    for (let d of (ICONS[name] || ICONS.box).split('|')) {
+      const p = document.createElementNS(svgNSi, 'path');
+      const filled = d.startsWith('F:');
+      if (filled) d = d.slice(2);
+      p.setAttribute('d', d);
+      p.setAttribute('fill', filled ? 'currentColor' : 'none');
+      if (!filled) {
+        p.setAttribute('stroke', 'currentColor');
+        p.setAttribute('stroke-width', '1.8');
+        p.setAttribute('stroke-linecap', 'round');
+        p.setAttribute('stroke-linejoin', 'round');
+      }
+      svg.append(p);
+    }
+    return svg;
   }
 
   /* ---------- 색/카테고리 (검증된 팔레트 — 순서 고정) ---------- */
@@ -116,10 +195,13 @@ const UI = (() => {
     heatAcc += prodPerSec * dt;
   }
 
-  function rotateHeat() { // 10초마다 호출
-    heat.push(heatAcc);
+  function rotateHeat(n = 1) { // 10초마다 호출 — 밀린 회전은 균등 분배해 한 번에 소진
+    const share = heatAcc / n;
+    for (let i = 0; i < n; i++) {
+      heat.push(share);
+      if (heat.length > DATA.const.heatCells) heat.shift();
+    }
     heatAcc = 0;
-    if (heat.length > DATA.const.heatCells) heat.shift();
   }
 
   function resetCharts() {
@@ -144,7 +226,8 @@ const UI = (() => {
       p.classList.toggle('is-active', p.id === 'panel-' + tab));
     $('tab-title').textContent =
       tab === 'build' && st.phase === 'evolution' ? '진화' : TAB_TITLES[tab];
-    structureDirty = true;
+    if (tab === 'records') renderRecordsTab(st, lastRates); // 1초 대기 없이 즉시 표시
+    if (tab === 'dash') renderChart(st);
     update(st, lastRates);
   }
 
@@ -250,9 +333,13 @@ const UI = (() => {
     for (const m of metrics) {
       const chip = el('button', 'chip' + (m.id === chartMetric ? ' is-active' : ''), m.name);
       chip.type = 'button';
+      chip.setAttribute('aria-pressed', String(m.id === chartMetric));
       chip.addEventListener('click', () => {
         chartMetric = m.id;
-        mrow.querySelectorAll('.chip').forEach((c) => c.classList.toggle('is-active', c === chip));
+        mrow.querySelectorAll('.chip').forEach((c) => {
+          c.classList.toggle('is-active', c === chip);
+          c.setAttribute('aria-pressed', String(c === chip));
+        });
         renderChart(G.state);
       });
       mrow.append(chip);
@@ -280,23 +367,23 @@ const UI = (() => {
 
     // 스탯 카드
     if (st.phase === 'evolution') {
-      setStat(0, '🧬', 'RNA', fmt(st.res.rna), `/ ${fmt(cap.rna)}`, fmtRate(prod.rna));
-      setStat(1, '⚡', 'RNA 생산', fmt(prod.rna), '/s', `소기관 ${st.evo.organelle}`);
-      setStat(2, '🧫', 'DNA', fmt(st.res.dna), `/ ${fmt(cap.dna)}`, fmtRate(prod.dna));
+      setStat(0, 'rna', 'RNA', fmt(st.res.rna), `/ ${fmt(cap.rna)}`, fmtRate(prod.rna));
+      setStat(1, 'bolt', 'RNA 생산', fmt(prod.rna), '/s', `소기관 ${st.evo.organelle}`);
+      setStat(2, 'dna', 'DNA', fmt(st.res.dna), `/ ${fmt(cap.dna)}`, fmtRate(prod.dna));
     } else {
       const netFood = prod.food - cons.food;
       const growing = st.pop < cap.pop && st.res.food > 1;
-      setStat(0, '👥', '인구', String(st.pop), `/ ${cap.pop}`, growing ? '성장 중' : '정체');
-      setStat(1, '🌾', '식량 순생산', fmtRate(netFood).replace('/s', ''), '/s',
-        netFood >= 0 ? '안정' : '⚠ 부족');
-      setStat(2, '📜', '지식', fmt(st.res.know), `/ ${fmt(cap.know)}`, fmtRate(prod.know));
+      setStat(0, 'user', '인구', String(st.pop), `/ ${cap.pop}`, growing ? '성장 중' : '정체');
+      setStat(1, 'wheat', '식량 순생산', fmtRate(netFood).replace('/s', ''), '/s',
+        netFood >= 0 ? '안정' : '부족');
+      setStat(2, 'scroll', '지식', fmt(st.res.know), `/ ${fmt(cap.know)}`, fmtRate(prod.know));
     }
 
     // 포트폴리오
     let total = 0, totalRate = 0;
     if (st.phase === 'evolution') {
       total = st.res.rna + st.res.dna;
-      totalRate = prod.rna + prod.dna - cons.rna * 0.5;
+      totalRate = prod.rna + prod.dna - cons.rna;
     } else {
       for (const r in st.res) {
         if (r === 'rna' || r === 'dna') continue;
@@ -325,7 +412,9 @@ const UI = (() => {
     for (const a of allocRefs) {
       const v = a.def.of(st.res);
       const p = v / sum;
-      a.seg.style.flexGrow = String(Math.max(p, 0.02));
+      // 0%(또는 0.5% 미만) 세그먼트는 숨긴다 — 전부 0이면 회색 트랙만 보임
+      a.seg.style.display = p < 0.005 ? 'none' : '';
+      a.seg.style.flexGrow = String(p);
       a.pct.textContent = Math.round(p * 100) + '%';
       a.amt.textContent = fmt(v);
     }
@@ -341,10 +430,14 @@ const UI = (() => {
     updateTrending(st);
   }
 
-  function setStat(i, icon, label, num, unit, badge) {
+  function setStat(i, icn, label, num, unit, badge) {
     const s = statRefs[i];
     if (!s) return;
-    s.icon.textContent = icon;
+    if (s.iconName !== icn) { // 아이콘은 바뀔 때만 교체 (250ms 갱신 churn 방지)
+      s.iconName = icn;
+      s.icon.textContent = '';
+      s.icon.append(icon(icn, 17));
+    }
     s.label.textContent = label;
     s.num.textContent = num;
     s.unit.textContent = unit;
@@ -392,10 +485,10 @@ const UI = (() => {
       box.append(el('div', 'trend-empty', '최근 1분간 증가한 자원이 없습니다'));
       return;
     }
-    const resIcon = { rna: '🧬', dna: '🧫', food: '🌾', lumber: '🪵', stone: '🪨', know: '📜', coins: '🪙' };
     for (const it of items.slice(0, 3)) {
       const div = el('div', 'trend-item');
-      const ic = el('div', 'trend-icon', resIcon[it.m.id] || '📦');
+      const ic = el('div', 'trend-icon');
+      ic.append(icon((DATA.resources[it.m.id] || {}).icon || 'box', 16));
       const mid = el('div');
       mid.append(el('div', 'trend-name', it.m.name), sparkline(it.m.id));
       const val = el('div', 'trend-val');
@@ -437,7 +530,8 @@ const UI = (() => {
   /* ---------- 메인 라인 차트 ---------- */
 
   const svgNS = 'http://www.w3.org/2000/svg';
-  const CW = 800, CH = 250, PADL = 10, PADR = 62, PADT = 18, PADB = 26;
+  let chartW = 800, chartH = 250; // 실제 렌더 크기로 매 렌더마다 갱신
+  const PADL = 10, PADR = 62, PADT = 18, PADB = 26;
   let chartPts = []; // 렌더된 점 [{x,y,t,v}]
 
   function chartData() {
@@ -470,13 +564,20 @@ const UI = (() => {
 
   function renderChart(st) {
     const svg = $('chart-svg');
-    svg.setAttribute('viewBox', `0 0 ${CW} ${CH}`);
+    // 실제 렌더 크기에 viewBox를 일치시켜 텍스트 비율 왜곡(preserveAspectRatio 문제)을 없앤다
+    const wrapRect = $('chart-wrap').getBoundingClientRect();
+    if (wrapRect.width > 60) {
+      chartW = wrapRect.width;
+      if (wrapRect.height > 40) chartH = wrapRect.height;
+    }
+    if (!$('chart-tip').hidden) chartLeave(); // 재렌더 시 낡은 툴팁 잔류 방지
+    svg.setAttribute('viewBox', `0 0 ${chartW} ${chartH}`);
     svg.textContent = '';
     const raw = chartData();
     chartPts = [];
     if (raw.length < 2) {
       const t = document.createElementNS(svgNS, 'text');
-      t.setAttribute('x', CW / 2); t.setAttribute('y', CH / 2);
+      t.setAttribute('x', chartW / 2); t.setAttribute('y', chartH / 2);
       t.setAttribute('text-anchor', 'middle');
       t.setAttribute('fill', '#8A8B92'); t.setAttribute('font-size', '13');
       t.textContent = '데이터 수집 중…';
@@ -489,35 +590,36 @@ const UI = (() => {
     const pad = (mx - mn) * 0.12;
     mn = Math.max(0, mn - pad); mx += pad;
     const t0 = raw[0].t, t1 = raw[raw.length - 1].t;
-    const X = (t) => PADL + (t - t0) / Math.max(1, t1 - t0) * (CW - PADL - PADR);
-    const Y = (v) => PADT + (1 - (v - mn) / (mx - mn)) * (CH - PADT - PADB);
+    const X = (t) => PADL + (t - t0) / Math.max(1, t1 - t0) * (chartW - PADL - PADR);
+    const Y = (v) => PADT + (1 - (v - mn) / (mx - mn)) * (chartH - PADT - PADB);
 
     // 그리드 (수평 헤어라인 + 우측 눈금 라벨)
     for (const tv of niceTicks(mn, mx)) {
       const y = Y(tv);
       const ln = document.createElementNS(svgNS, 'line');
-      ln.setAttribute('x1', PADL); ln.setAttribute('x2', CW - PADR + 6);
+      ln.setAttribute('x1', PADL); ln.setAttribute('x2', chartW - PADR + 6);
       ln.setAttribute('y1', y); ln.setAttribute('y2', y);
       ln.setAttribute('stroke', 'rgba(255,255,255,0.08)');
       ln.setAttribute('stroke-width', '1');
       svg.append(ln);
       const tx = document.createElementNS(svgNS, 'text');
-      tx.setAttribute('x', CW - PADR + 10); tx.setAttribute('y', y + 4);
+      tx.setAttribute('x', chartW - PADR + 10); tx.setAttribute('y', y + 4);
       tx.setAttribute('fill', '#8A8B92'); tx.setAttribute('font-size', '11');
       tx.setAttribute('font-variant-numeric', 'tabular-nums');
       tx.textContent = fmt(tv);
       svg.append(tx);
     }
 
-    // X축 시간 라벨 (4개)
+    // X축 시간 라벨 (4개) — 짧은 구간에서는 초까지 표시해 라벨 중복 방지
+    const shortSpan = t1 - t0 < 600000;
     for (let i = 0; i <= 3; i++) {
       const tt = t0 + (t1 - t0) * i / 3;
       const tx = document.createElementNS(svgNS, 'text');
       tx.setAttribute('x', X(tt));
-      tx.setAttribute('y', CH - 6);
+      tx.setAttribute('y', chartH - 6);
       tx.setAttribute('text-anchor', i === 0 ? 'start' : i === 3 ? 'end' : 'middle');
       tx.setAttribute('fill', '#8A8B92'); tx.setAttribute('font-size', '11');
-      tx.textContent = fmtClock(tt);
+      tx.textContent = shortSpan ? fmtClockSec(tt) : fmtClock(tt);
       svg.append(tx);
     }
 
@@ -528,7 +630,7 @@ const UI = (() => {
       chartPts.push({ x, y, t: h.t, v: h.v[chartMetric] || 0 });
       dLine += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
     });
-    dArea = dLine + `L${X(t1).toFixed(1)} ${CH - PADB}L${X(t0).toFixed(1)} ${CH - PADB}Z`;
+    dArea = dLine + `L${X(t1).toFixed(1)} ${chartH - PADB}L${X(t0).toFixed(1)} ${chartH - PADB}Z`;
 
     const area = document.createElementNS(svgNS, 'path');
     area.setAttribute('d', dArea);
@@ -559,7 +661,7 @@ const UI = (() => {
     ch.setAttribute('id', 'crosshair');
     ch.setAttribute('visibility', 'hidden');
     const cline = document.createElementNS(svgNS, 'line');
-    cline.setAttribute('y1', PADT); cline.setAttribute('y2', CH - PADB);
+    cline.setAttribute('y1', PADT); cline.setAttribute('y2', chartH - PADB);
     cline.setAttribute('stroke', 'rgba(255,255,255,0.4)');
     cline.setAttribute('stroke-width', '1');
     const cdot = document.createElementNS(svgNS, 'circle');
@@ -577,7 +679,7 @@ const UI = (() => {
     const ch = svg.querySelector('#crosshair');
     if (!chartPts.length || !ch) return;
     const rect = svg.getBoundingClientRect();
-    const px = (ev.clientX - rect.left) / rect.width * CW;
+    const px = (ev.clientX - rect.left) / rect.width * chartW;
     let best = chartPts[0], bd = Infinity;
     for (const p of chartPts) {
       const d = Math.abs(p.x - px);
@@ -593,8 +695,8 @@ const UI = (() => {
     tip.append(el('div', 'v tnum', fmt(best.v)), el('div', 't', fmtClock(best.t)));
     const wrap = $('chart-wrap');
     const wr = wrap.getBoundingClientRect();
-    const lx = best.x / CW * wr.width;
-    const ly = best.y / CH * wr.height;
+    const lx = best.x / chartW * wr.width;
+    const ly = best.y / chartH * wr.height;
     tip.style.left = Math.max(50, Math.min(wr.width - 50, lx)) + 'px';
     tip.style.top = ly + 'px';
   }
@@ -616,8 +718,9 @@ const UI = (() => {
     box.textContent = '';
     for (const r in cost) {
       const ok = st.res[r] >= cost[r];
-      const span = el('span', ok ? 'cost-ok tnum' : 'cost-no tnum',
-        `${DATA.resources[r].icon} ${fmt(cost[r])}`);
+      const span = el('span', ok ? 'cost-ok tnum' : 'cost-no tnum');
+      span.title = DATA.resources[r].name;
+      span.append(icon(DATA.resources[r].icon, 12), document.createTextNode(' ' + fmt(cost[r])));
       box.append(span);
     }
   }
@@ -632,7 +735,7 @@ const UI = (() => {
       const grid1 = el('div', 'build-grid');
       for (const id in DATA.evolutions) {
         const d = DATA.evolutions[id];
-        grid1.append(itemCard('evo:' + id, '🧬', d.name, d.desc, () => {
+        grid1.append(itemCard('evo:' + id, d.icon, d.name, d.desc, () => {
           const evts = [];
           if (Engine.buyEvo(G.state, id, evts)) afterAction(evts);
         }));
@@ -643,7 +746,7 @@ const UI = (() => {
       const grid2 = el('div', 'build-grid');
       DATA.evoChain.forEach((step, i) => {
         if (i > st.evoChain) return; // 다음 단계만 노출
-        grid2.append(itemCard('chain:' + step.id, '✨', step.name, step.desc, () => {
+        grid2.append(itemCard('chain:' + step.id, 'star', step.name, step.desc, () => {
           const evts = [];
           if (Engine.buyChain(G.state, evts)) afterAction(evts);
         }, i < st.evoChain));
@@ -670,7 +773,8 @@ const UI = (() => {
       const w = DATA.wonder;
       const card = el('div', 'card item-card');
       const top = el('div', 'item-top');
-      const ic = el('div', 'item-icon', w.icon);
+      const ic = el('div', 'item-icon');
+      ic.append(icon(w.icon, 19));
       const nm = el('div');
       nm.append(el('div', 'item-name', w.name), el('div', 'item-count'));
       top.append(ic, nm);
@@ -691,10 +795,11 @@ const UI = (() => {
     }
   }
 
-  function itemCard(key, icon, name, desc, onBuy, done = false) {
+  function itemCard(key, icn, name, desc, onBuy, done = false) {
     const card = el('div', 'card item-card');
     const top = el('div', 'item-top');
-    const ic = el('div', 'item-icon', icon);
+    const ic = el('div', 'item-icon');
+    ic.append(icon(icn, 19));
     const nm = el('div');
     const count = el('div', 'item-count');
     nm.append(el('div', 'item-name', name), count);
@@ -777,7 +882,9 @@ const UI = (() => {
         const done = !!st.techs[id];
         const card = el('div', 'card item-card');
         const top = el('div', 'item-top');
-        top.append(el('div', 'item-icon', d.icon));
+        const tic = el('div', 'item-icon');
+        tic.append(icon(d.icon, 19));
+        top.append(tic);
         const nm = el('div');
         nm.append(el('div', 'item-name', d.name), el('div', 'item-count', done ? '연구 완료' : '미연구'));
         top.append(nm);
@@ -851,7 +958,8 @@ const UI = (() => {
     for (const j in DATA.jobs) {
       const d = DATA.jobs[j];
       const row = el('div', 'job-row');
-      const ic = el('div', 'item-icon', d.icon);
+      const ic = el('div', 'item-icon');
+      ic.append(icon(d.icon, 19));
       const info = el('div', 'job-info');
       const t1 = el('div', 't1', d.name);
       const t2 = el('div', 't2');
@@ -916,6 +1024,12 @@ const UI = (() => {
 
   function renderRecordsTab(st, rt) {
     const root = $('records-content');
+    // 사용자가 텍스트를 선택 중이면 재구축을 보류 (매초 선택 해제 방지)
+    const sel = document.getSelection();
+    if (sel && !sel.isCollapsed && root.contains(sel.anchorNode)) return;
+    // 재구축 전 스크롤 위치 보존
+    const scrolls = Array.from(root.querySelectorAll('.table-scroll, .log-list'))
+      .map((n) => n.scrollTop);
     root.textContent = '';
     const grid = el('div', 'records-grid');
 
@@ -963,7 +1077,7 @@ const UI = (() => {
       if (def.phase !== (st.phase === 'evolution' ? 'evolution' : 'civ')) continue;
       if (def.needsTech && !st.techs[def.needsTech]) continue;
       const tr = el('tr');
-      tr.append(el('td', null, `${def.icon} ${def.name}`));
+      tr.append(el('td', null, def.name));
       tr.append(el('td', 'num', fmt(st.res[r])));
       tr.append(el('td', 'num', fmt(cap[r])));
       tr.append(el('td', 'num', fmtRate((rt.prod[r] || 0) - (rt.cons[r] || 0))));
@@ -1022,6 +1136,7 @@ const UI = (() => {
    * ================================================================ */
 
   let settingsRefs = {};
+  let saveIoValue = ''; // 재구축을 넘어 textarea 내용 유지
 
   function buildSettingsTab(st) {
     const root = $('settings-content');
@@ -1038,7 +1153,7 @@ const UI = (() => {
     ascBtn.type = 'button';
     ascBtn.addEventListener('click', () => {
       if (!Engine.canAscend(G.state)) return;
-      showOverlay('✦', '초월',
+      showOverlay('star', '초월',
         `문명을 내려놓고 정수 ${Engine.essenceGain(G.state)}을 얻습니다.\n다음 회차의 모든 생산이 영구히 빨라집니다.\n(정수 1 = 생산/클릭 +5%)`,
         '초월한다', () => { G.doAscend(); });
     });
@@ -1062,10 +1177,13 @@ const UI = (() => {
     ta.placeholder = '내보내기를 누르면 코드가 생성됩니다. 가져오려면 코드를 붙여넣고 가져오기를 누르세요.';
     ta.style.marginTop = '12px';
     ta.setAttribute('aria-label', '저장 코드');
+    ta.value = saveIoValue; // 탭 전환/재구축에도 내용 유지
+    ta.addEventListener('input', () => { saveIoValue = ta.value; });
     save.append(row1, ta, el('p', 'setting-note', '15초마다 자동 저장됩니다. 저장은 이 브라우저(localStorage)에 보관됩니다.'));
-    bSave.addEventListener('click', () => { G.save(); flashBtn(bSave, '저장됨!'); });
+    bSave.addEventListener('click', () => { flashBtn(bSave, G.save() ? '저장됨!' : '저장 실패'); });
     bExport.addEventListener('click', () => {
       ta.value = btoa(unescape(encodeURIComponent(Engine.serialize(G.state))));
+      saveIoValue = ta.value;
       ta.select();
       flashBtn(bExport, '생성됨!');
     });
@@ -1073,7 +1191,8 @@ const UI = (() => {
       try {
         const st2 = Engine.deserialize(decodeURIComponent(escape(atob(ta.value.trim()))));
         G.replaceState(st2);
-        flashBtn(bImport, '가져옴!');
+        // replaceState의 재구축이 버튼을 교체하므로 flashBtn 대신 오버레이로 확정 피드백
+        showOverlay('download', '가져오기 완료', '저장 코드를 불러왔습니다.', '확인', null);
       } catch (e) {
         flashBtn(bImport, '코드 오류');
       }
@@ -1088,7 +1207,7 @@ const UI = (() => {
     bReset.style.marginTop = '14px';
     bReset.style.color = 'var(--bad)';
     bReset.addEventListener('click', () => {
-      showOverlay('⚠️', '전체 초기화',
+      showOverlay('alert', '전체 초기화',
         '정수를 포함한 모든 진행이 삭제됩니다.\n되돌릴 수 없습니다.', '삭제한다', () => { G.hardReset(); });
     });
     danger.append(bReset);
@@ -1128,8 +1247,8 @@ const UI = (() => {
   const logs = []; // {kind,title,sub,ts} 최신이 앞
 
   const LOG_ICONS = {
-    build: '🔨', tech: '🔬', pop: '👶', warn: '⚠️',
-    phase: '✨', wonder: '🏛️', ascend: '✦', gain: '🌙', save: '💾',
+    build: 'hammer', tech: 'flask', pop: 'user', warn: 'alert',
+    phase: 'star', wonder: 'temple', ascend: 'star', gain: 'moon', save: 'disk',
   };
 
   function log(evts) {
@@ -1151,7 +1270,8 @@ const UI = (() => {
     }
     for (const e of logs.slice(0, max)) {
       const item = el('div', 'log-item');
-      const ic = el('div', 'log-icon k-' + e.kind, LOG_ICONS[e.kind] || '•');
+      const ic = el('div', 'log-icon k-' + e.kind);
+      ic.append(icon(LOG_ICONS[e.kind] || 'box', 16));
       const mid = el('div');
       mid.append(el('div', 't1', e.title), el('div', 't2', e.sub || ''));
       item.append(ic, mid, el('div', 'log-time', fmtClock(e.ts)));
@@ -1190,9 +1310,14 @@ const UI = (() => {
 
   function updateChrome(st) {
     $('hint-chip').textContent = goalHint(st);
-    $('avatar').textContent =
-      st.phase === 'evolution' ? '🦠'
-        : st.wonderSeg >= DATA.wonder.segments ? '🏛️' : '🧑‍🌾';
+    const av = $('avatar');
+    const avIcon = st.phase === 'evolution' ? 'cell'
+      : st.wonderSeg >= DATA.wonder.segments ? 'temple' : 'user';
+    if (av.dataset.icon !== avIcon) {
+      av.dataset.icon = avIcon;
+      av.textContent = '';
+      av.append(icon(avIcon, 20));
+    }
     // 진화 단계에서는 연구/인구 탭 숨김
     document.querySelectorAll('.side-btn').forEach((b) => {
       const t = b.dataset.tab;
@@ -1202,15 +1327,29 @@ const UI = (() => {
   }
 
   let overlayCb = null;
+  let overlayPrevFocus = null;
 
-  function showOverlay(icon, title, desc, btnText, cb) {
-    $('overlay-icon').textContent = icon;
+  function showOverlay(icn, title, desc, btnText, cb) {
+    const oi = $('overlay-icon');
+    oi.textContent = '';
+    oi.append(icon(icn, 40));
     $('overlay-title').textContent = title;
     $('overlay-desc').textContent = desc;
     $('overlay-btn').textContent = btnText;
     overlayCb = cb;
+    overlayPrevFocus = document.activeElement;
     $('overlay').hidden = false;
     $('overlay-btn').focus();
+  }
+
+  // Esc = 취소(콜백 미실행), 버튼 = 실행. 닫을 때 이전 포커스 복원.
+  function closeOverlay(runCb) {
+    $('overlay').hidden = true;
+    const cb = overlayCb;
+    overlayCb = null;
+    if (overlayPrevFocus && overlayPrevFocus.isConnected) overlayPrevFocus.focus();
+    overlayPrevFocus = null;
+    if (runCb && cb) cb();
   }
 
   /* ================================================================
@@ -1221,7 +1360,15 @@ const UI = (() => {
 
   function afterAction(evts) {
     log(evts);
-    markDirty();
+    for (const e of evts) {
+      if (e.kind === 'wonder' && e.title.indexOf('완공') >= 0) {
+        showOverlay('temple', '대신전 완공',
+          '문명의 정점에 도달했습니다.\n설정 탭에서 초월하여 다음 회차를 준비할 수 있습니다.',
+          '확인', null);
+      }
+    }
+    // 재구축 여부는 update()의 structureSig 비교에 맡긴다 —
+    // 무조건 재구축하면 방금 클릭한 버튼이 파괴되어 키보드 포커스가 유실된다.
     quickUpdate();
   }
 
@@ -1264,25 +1411,27 @@ const UI = (() => {
       b.addEventListener('click', () => switchTab(b.dataset.tab, G.state)));
     document.querySelectorAll('[data-goto]').forEach((b) =>
       b.addEventListener('click', () => switchTab(b.dataset.goto, G.state)));
-    $('chart-ranges').querySelectorAll('.chip').forEach((chip) =>
+    $('chart-ranges').querySelectorAll('.chip').forEach((chip) => {
+      chip.setAttribute('aria-pressed', String(chip.classList.contains('is-active')));
       chip.addEventListener('click', () => {
         chartRange = Number(chip.dataset.range);
-        $('chart-ranges').querySelectorAll('.chip').forEach((c) =>
-          c.classList.toggle('is-active', c === chip));
+        $('chart-ranges').querySelectorAll('.chip').forEach((c) => {
+          c.classList.toggle('is-active', c === chip);
+          c.setAttribute('aria-pressed', String(c === chip));
+        });
         renderChart(G.state);
-      }));
+      });
+    });
     const wrap = $('chart-wrap');
     wrap.addEventListener('pointermove', chartHover);
     wrap.addEventListener('pointerleave', chartLeave);
     $('btn-save').addEventListener('click', () => {
-      G.save();
-      flashBtn($('btn-save'), '저장됨!');
+      flashBtn($('btn-save'), G.save() ? '저장됨!' : '저장 실패');
     });
-    $('overlay-btn').addEventListener('click', () => {
-      $('overlay').hidden = true;
-      const cb = overlayCb;
-      overlayCb = null;
-      if (cb) cb();
+    $('overlay-btn').addEventListener('click', () => closeOverlay(true));
+    $('overlay').addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') { ev.preventDefault(); closeOverlay(false); }
+      else if (ev.key === 'Tab') { ev.preventDefault(); $('overlay-btn').focus(); }
     });
   }
 

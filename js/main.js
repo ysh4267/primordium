@@ -17,14 +17,21 @@ const G = (() => {
   function save() {
     try {
       localStorage.setItem(KEY, Engine.serialize(state));
-    } catch (e) { /* 저장 공간 문제 등 — 게임은 계속 */ }
+      return true;
+    } catch (e) {
+      return false; // 저장 공간/프라이빗 모드 등 — 게임은 계속, UI가 실패를 표시
+    }
   }
 
   function load() {
+    let raw = null;
     try {
-      const raw = localStorage.getItem(KEY);
+      raw = localStorage.getItem(KEY);
       if (raw) return Engine.deserialize(raw);
-    } catch (e) { /* 손상된 저장 → 새 게임 */ }
+    } catch (e) {
+      // 손상된 저장 → 원본을 백업해 두고 새 게임 (자동저장이 덮어쓰기 전에 보존)
+      try { if (raw) localStorage.setItem(KEY + '-corrupt', raw); } catch (e2) {}
+    }
     return null;
   }
 
@@ -51,7 +58,7 @@ const G = (() => {
     UI.switchTab('dash', state);
     UI.update(state, Engine.rates(state));
     save();
-    UI.showOverlay('🦠', '새로운 시작',
+    UI.showOverlay('cell', '새로운 시작',
       `정수의 힘이 원시 수프에 스며듭니다.\n모든 생산 +${state.essence * 5}% 상태로 다시 진화를 시작합니다.`,
       '진화 시작', null);
   }
@@ -95,16 +102,9 @@ const G = (() => {
       prevPhase = state.phase;
       UI.resetCharts();
       UI.markDirty();
-      UI.showOverlay('🧠', '지성 획득',
+      UI.showOverlay('user', '지성 획득',
         '수십억 년의 진화 끝에, 인류가 깨어났습니다.\n이제 부족을 이끌고 문명을 세우세요.',
         '문명 시작', null);
-    }
-    for (const e of evts) {
-      if (e.kind === 'wonder' && e.title.indexOf('완공') >= 0) {
-        UI.showOverlay('🏛️', '대신전 완공',
-          '문명의 정점에 도달했습니다.\n설정 탭에서 초월하여 다음 회차를 준비할 수 있습니다.',
-          '확인', null);
-      }
     }
 
     UI.log(evts);
@@ -116,11 +116,12 @@ const G = (() => {
       UI.pushHist(state);
       UI.updateSlow(state);
     }
-    // 10초 주기: 히트맵 회전
+    // 10초 주기: 히트맵 회전 (큰 dt는 한 번에 소진하며 균등 분배)
     heatT += dt;
-    if (heatT >= DATA.const.heatBucketSec) {
-      heatT -= DATA.const.heatBucketSec;
-      UI.rotateHeat();
+    const rotations = Math.floor(heatT / DATA.const.heatBucketSec);
+    if (rotations > 0) {
+      heatT -= rotations * DATA.const.heatBucketSec;
+      UI.rotateHeat(rotations);
     }
     // 15초 주기: 자동 저장
     saveT += dt;
@@ -144,12 +145,13 @@ const G = (() => {
     const evts = [];
     if (state.lastSave) {
       const off = Engine.applyOffline(state, (Date.now() - state.lastSave) / 1000, evts);
-      if (off && evts.length) {
+      if (off) {
         const parts = [];
         for (const r in off.gains)
           parts.push(`${DATA.resources[r].name} +${UI.fmt(off.gains[r])}`);
-        if (parts.length)
+        if (parts.length && evts.length)
           evts[evts.length - 1].sub += ' — ' + parts.slice(0, 4).join(' · ');
+        save(); // 즉시 저장 — 비정상 종료 시 오프라인 보상 중복 지급 방지
       }
     }
     UI.log(evts);

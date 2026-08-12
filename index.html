@@ -51,7 +51,7 @@
       <div class="topbar-right">
         <div class="hint-chip" id="hint-chip" title="다음 목표"></div>
         <button id="btn-save" class="pill pill-ghost" type="button">저장</button>
-        <div class="avatar" id="avatar" title="현재 단계">🦠</div>
+        <div class="avatar" id="avatar" title="현재 단계"></div>
       </div>
     </header>
 
@@ -65,7 +65,7 @@
             <div class="card card-dark chart-card">
               <div class="chart-head">
                 <h2 id="chart-title">생산 추이</h2>
-                <div class="chip-row" id="chart-ranges" role="tablist" aria-label="차트 기간">
+                <div class="chip-row" id="chart-ranges" aria-label="차트 기간">
                   <button class="chip" data-range="60">1분</button>
                   <button class="chip is-active" data-range="600">10분</button>
                   <button class="chip" data-range="3600">1시간</button>
@@ -91,7 +91,7 @@
               <div class="card trending-card">
                 <div class="card-head">
                   <h2>가속 중인 자원</h2>
-                  <span class="muted-link" data-goto="records">전체 보기</span>
+                  <button class="muted-link" data-goto="records" type="button">전체 보기</button>
                 </div>
                 <div class="trend-list" id="trend-list"></div>
               </div>
@@ -114,7 +114,7 @@
             <div class="card log-card">
               <div class="card-head">
                 <h2>이벤트</h2>
-                <span class="muted-link" data-goto="records">전체 보기</span>
+                <button class="muted-link" data-goto="records" type="button">전체 보기</button>
               </div>
               <div class="log-list" id="log-list"></div>
             </div>
@@ -154,7 +154,7 @@
 <!-- 전체 화면 전환 오버레이 -->
 <div class="overlay" id="overlay" hidden>
   <div class="overlay-card" role="dialog" aria-modal="true">
-    <div class="overlay-icon" id="overlay-icon">🧠</div>
+    <div class="overlay-icon" id="overlay-icon"></div>
     <h2 id="overlay-title">지성 획득</h2>
     <p id="overlay-desc">인류가 깨어났습니다.</p>
     <button class="pill pill-blue wide" id="overlay-btn" type="button">계속</button>

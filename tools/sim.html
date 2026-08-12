@@ -170,6 +170,34 @@ const st3 = Engine.deserialize(ser);
 const off = Engine.applyOffline(st3, 3600, []);
 assertInvariants(st3, 'offline');
 
+/* 악성/손상 저장 방어 검증 (리뷰에서 확인된 공격 벡터 재현) */
+const evil = [
+  '{"__proto__":{"engineering":true,"x":5}}',
+  '{"res":{"__proto__":{"x":5}}}',
+  '{"stats":null}',
+  '{"res":5}',
+  '{"buildings":{"hut":{}}}',
+  '{"buildings":{"hut":-5}}',
+  '{"evo":{"membrane":"x"}}',
+  '{"growthT":"a","essence":"x","pop":-3}',
+  '{"jobs":[1,2,3],"techs":[true]}',
+];
+let evilOk = 1;
+const evilNotes = [];
+for (const e of evil) {
+  try {
+    const s = Engine.deserialize(e);
+    Engine.tick(s, 1, null);
+    Engine.tick(s, 120, null);
+    for (const r in s.res) if (!isFinite(s.res[r]) || s.res[r] < 0) { evilOk = 0; evilNotes.push('res 오염: ' + e); }
+    if (!isFinite(s.pop) || s.pop < 0) { evilOk = 0; evilNotes.push('pop 오염: ' + e); }
+    if (s.techs.engineering) { evilOk = 0; evilNotes.push('무료 테크: ' + e); }
+  } catch (err) { /* 예외는 허용 — load()가 백업 후 새 게임 처리 */ }
+  if (({}).engineering !== undefined || ({}).x !== undefined) {
+    evilOk = 0; evilNotes.push('프로토타입 오염: ' + e);
+  }
+}
+
 const result = {
   milestones_min: Object.fromEntries(
     Object.entries(MILE).map(([k, v]) =>
@@ -183,6 +211,8 @@ const result = {
   },
   saveRoundtripOk: saveOk,
   offlineGains: off ? Object.fromEntries(Object.entries(off.gains).map(([k, v]) => [k, Math.round(v)])) : null,
+  evilSaveDefenseOk: evilOk,
+  evilNotes: evilNotes.slice(0, 10),
   violations: VIOL.slice(0, 30),
   violationCount: VIOL.length,
 };

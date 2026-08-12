@@ -74,8 +74,8 @@ const Engine = (() => {
       food: DATA.resources.food.baseCap + b.farm * 25 + b.shed * 90,
       lumber: DATA.resources.lumber.baseCap + b.shed * 120,
       stone: DATA.resources.stone.baseCap + b.shed * 120,
-      copper: DATA.resources.copper.baseCap + b.shed * 40,
-      iron: DATA.resources.iron.baseCap + b.shed * 40,
+      copper: DATA.resources.copper.baseCap + b.shed * 50,
+      iron: DATA.resources.iron.baseCap + b.shed * 50,
       know: DATA.resources.know.baseCap + b.sundial * 25 + b.school * 60 + b.library * 120,
       coins: DATA.resources.coins.baseCap + b.market * 100,
       pop: b.hut * 2 + b.house * 5,
@@ -96,6 +96,19 @@ const Engine = (() => {
   }
 
   const freeCitizens = (st) => st.pop - assignedTotal(st);
+
+  // 기아/정합성 해소용 해고 — 농부는 최후에 해고해 '죽음의 나선'을 막는다
+  function fireOne(st) {
+    let pick = null;
+    for (const j in st.jobs) {
+      if (j === 'farmer' || st.jobs[j] <= 0) continue;
+      if (!pick || st.jobs[j] > st.jobs[pick]) pick = j;
+    }
+    if (!pick && st.jobs.farmer > 0) pick = 'farmer';
+    if (!pick) return false;
+    st.jobs[pick] -= 1;
+    return true;
+  }
 
   function assign(st, job, delta) {
     if (delta > 0) {
@@ -118,9 +131,9 @@ const Engine = (() => {
     if (st.phase === 'evolution') {
       const orgRate = st.evo.organelle * 0.7 * (1 + 0.25 * st.evo.mito) * essenceMult(st);
       prod.rna += orgRate;
-      // 핵: RNA 1.4/s → DNA 0.7/s (재고 기반 제한은 tick에서 처리)
+      // 핵: RNA 1.4/s → DNA 0.7/s ×정수 (재고 기반 제한은 tick에서 처리)
       cons.rna += st.evo.nucleus * 1.4;
-      prod.dna = st.evo.nucleus * 0.7;
+      prod.dna = st.evo.nucleus * 0.7 * essenceMult(st);
       return { prod, cons };
     }
 
@@ -150,15 +163,17 @@ const Engine = (() => {
       const got = Math.min(want, st.res.rna);
       if (want > 0) {
         st.res.rna -= got;
-        st.res.dna = Math.min(cap.dna, st.res.dna + got * 0.5);
+        st.res.dna = Math.min(cap.dna, st.res.dna + got * 0.5 * essenceMult(st));
       }
     } else {
+      const knowBefore = st.res.know;
       for (const r in st.res) {
         if (r === 'rna' || r === 'dna') continue;
         const net = (prod[r] - cons[r]) * dt;
         st.res[r] = Math.max(0, Math.min(cap[r], st.res[r] + net));
       }
-      st.stats.cumKnow += prod.know * dt;
+      // 정수 계산용 누적 지식: 실제로 저장된 양만 집계 (한도에 막히면 누적 중단 — 방치 파밍 방지)
+      st.stats.cumKnow += Math.max(0, st.res.know - knowBefore);
 
       // 인구 성장
       const netFood = prod.food - cons.food;
@@ -178,14 +193,8 @@ const Engine = (() => {
         if (st.starveT >= C.starveTime) {
           st.starveT = 0;
           st.pop -= 1;
-          // 배정 인원이 인구를 넘으면 가장 많은 직업에서 해제
-          while (assignedTotal(st) > st.pop) {
-            let big = null;
-            for (const j in st.jobs)
-              if (!big || st.jobs[j] > st.jobs[big]) big = j;
-            if (!big || st.jobs[big] <= 0) break;
-            st.jobs[big] -= 1;
-          }
+          // 배정 인원이 인구를 넘으면 해제 (농부 보호 순서)
+          while (assignedTotal(st) > st.pop) { if (!fireOne(st)) break; }
           if (evts) evts.push({ kind: 'warn', title: '기아 발생', sub: `시민 1명 사망 — 식량을 확보하세요` });
         }
       } else st.starveT = 0;
@@ -351,7 +360,8 @@ const Engine = (() => {
     const t = Math.min(Math.max(0, elapsedSec), C.offlineCapSec);
     if (t < 5) return null;
     const before = Object.assign({}, st.res);
-    const steps = 120;
+    // 온라인 루프와 동일하게 1초 이하 청크 — 성장/기아/한도 로직이 왜곡되지 않게
+    const steps = Math.max(1, Math.ceil(t));
     for (let i = 0; i < steps; i++) tick(st, t / steps, null);
     const gains = {};
     for (const r in st.res) {
@@ -369,41 +379,87 @@ const Engine = (() => {
 
   const serialize = (st) => JSON.stringify(Object.assign({}, st, { lastSave: Date.now() }));
 
-  // 저장본에 없는 필드는 기본값으로 채운다(버전 이행 안전)
+  const isPlainObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+  // 저장본에 없는 필드는 기본값으로 채운다(버전 이행 안전).
+  // 알려진 키만, 순수 객체 구조만 병합한다 — __proto__ 오염·타입 붕괴 차단.
   function deserialize(str) {
     const raw = JSON.parse(str);
     const st = newState();
-    merge(st, raw);
+    if (isPlainObj(raw)) {
+      merge(st, raw);
+      // techs는 키가 열려 있으므로 별도 화이트리스트 복사
+      if (isPlainObj(raw.techs)) {
+        st.techs = {};
+        for (const k in raw.techs) {
+          if (!hasOwn(raw.techs, k)) continue;
+          if (DATA.techs[k] && raw.techs[k]) st.techs[k] = true;
+        }
+      }
+    }
     sanitize(st);
     return st;
   }
 
   function merge(base, patch) {
     for (const k in patch) {
-      if (patch[k] !== null && typeof patch[k] === 'object' && !Array.isArray(patch[k])
-          && base[k] !== null && typeof base[k] === 'object') merge(base[k], patch[k]);
-      else base[k] = patch[k];
+      if (!hasOwn(patch, k)) continue;
+      if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+      if (!hasOwn(base, k)) continue; // 알려진 필드만
+      const bv = base[k], pv = patch[k];
+      if (isPlainObj(bv)) {
+        if (isPlainObj(pv)) merge(bv, pv); // 컨테이너 자리에 스칼라/배열/null 거부
+      } else if (pv === null || typeof pv !== 'object') {
+        base[k] = pv; // 스칼라 자리에 객체 거부
+      }
     }
   }
 
+  const numOr0 = (v, max) => {
+    v = Number(v);
+    if (!isFinite(v) || v < 0) return 0;
+    return max !== undefined && v > max ? max : v;
+  };
+  const intOr0 = (v, max) => Math.floor(numOr0(v, max));
+
+  // caps() 계산 **이전에** 모든 입력을 유한 비음수로 강제한 뒤 클램프한다.
   function sanitize(st) {
+    const fresh = newState();
+    for (const k of ['res', 'evo', 'buildings', 'jobs', 'stats', 'techs']) {
+      if (!isPlainObj(st[k])) st[k] = fresh[k];
+    }
+    // 알 수 없는 키 제거 + 숫자 강제
+    for (const id in st.evo) if (!DATA.evolutions[id]) delete st.evo[id];
+    for (const id in st.buildings) if (!DATA.buildings[id]) delete st.buildings[id];
+    for (const r in st.res) if (!DATA.resources[r]) delete st.res[r];
+    for (const j in st.jobs) if (!DATA.jobs[j]) delete st.jobs[j];
+    for (const id in DATA.evolutions) st.evo[id] = intOr0(st.evo[id], 1e6);
+    for (const id in DATA.buildings) st.buildings[id] = intOr0(st.buildings[id], 1e6);
+    for (const j in DATA.jobs) st.jobs[j] = intOr0(st.jobs[j], 1e6);
+    for (const id in st.techs) st.techs[id] = !!st.techs[id];
+    st.phase = st.phase === 'civ' ? 'civ' : 'evolution';
+    st.evoChain = intOr0(st.evoChain, DATA.evoChain.length);
+    st.wonderSeg = intOr0(st.wonderSeg, DATA.wonder.segments);
+    st.essence = intOr0(st.essence, 1e6);
+    st.ascensions = intOr0(st.ascensions, 1e6);
+    st.pop = intOr0(st.pop, 1e9);
+    st.growthT = numOr0(st.growthT, 3600);
+    st.starveT = numOr0(st.starveT, 3600);
+    st.stats.cumKnow = numOr0(st.stats.cumKnow, 1e15);
+    st.stats.actions = intOr0(st.stats.actions, 1e15);
+    st.stats.clicks = intOr0(st.stats.clicks, 1e15);
+    st.stats.playSec = numOr0(st.stats.playSec, 1e12);
+    st.stats.startedAt = numOr0(st.stats.startedAt) || Date.now();
+    st.lastSave = numOr0(st.lastSave) || Date.now();
+    // 이제 caps는 유한값 — 안전하게 클램프
     const cap = caps(st);
-    for (const r in st.res) {
-      if (!isFinite(st.res[r]) || st.res[r] < 0) st.res[r] = 0;
-      if (cap[r] !== undefined) st.res[r] = Math.min(st.res[r], cap[r]);
+    for (const r in DATA.resources) {
+      st.res[r] = numOr0(st.res[r], isFinite(cap[r]) ? cap[r] : 0);
     }
-    if (!isFinite(st.pop) || st.pop < 0) st.pop = 0;
     st.pop = Math.min(st.pop, cap.pop);
-    for (const j in st.jobs) {
-      if (!isFinite(st.jobs[j]) || st.jobs[j] < 0) st.jobs[j] = 0;
-      st.jobs[j] = Math.min(st.jobs[j], slots(st, j));
-    }
-    while (assignedTotal(st) > st.pop) {
-      let big = null;
-      for (const j in st.jobs) if (!big || st.jobs[j] > st.jobs[big]) big = j;
-      if (!big || st.jobs[big] <= 0) break;
-      st.jobs[big]--;
-    }
+    for (const j in DATA.jobs) st.jobs[j] = Math.min(st.jobs[j], slots(st, j));
+    while (assignedTotal(st) > st.pop) { if (!fireOne(st)) break; }
     return st;
   }
 
