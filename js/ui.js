@@ -441,8 +441,9 @@ const UI = (() => {
     // 채집 버튼 상태
     for (const gr of gatherRefs) {
       if (gr.def.label === 'DNA 합성') {
-        gr.btn.disabled = st.res.rna < 2;
-        gr.sub.textContent = `RNA 2 → DNA ${fmt(Engine.essenceMult(st))}`;
+        const dnaFull = st.res.dna >= cap.dna - 1e-9;
+        gr.btn.disabled = st.res.rna < 2 || dnaFull;
+        gr.sub.textContent = dnaFull ? 'DNA 한도 가득 참' : `RNA 2 → DNA ${fmt(Engine.essenceMult(st))}`;
       } else if (st.phase === 'civ') {
         gr.sub.textContent = `+${fmt(Engine.clickPower(st))}`;
       } else {

@@ -171,6 +171,21 @@ const st3 = Engine.deserialize(ser);
 const off = Engine.applyOffline(st3, 3600, []);
 assertInvariants(st3, 'offline');
 
+/* 병목 검증: DNA 한도 도달 시 핵 변환이 정지하고 RNA가 쌓여야 한다 */
+const bt = Engine.newState();
+bt.evo.organelle = 5; bt.evo.nucleus = 3;
+bt.res.dna = Engine.caps(bt).dna; // DNA 가득
+bt.res.rna = 50;
+Engine.tick(bt, 10, null);
+const bottleneckOk =
+  bt.res.rna > 50 && Math.abs(bt.res.dna - Engine.caps(bt).dna) < 1e-6 ? 1 : 0;
+// 여유가 조금 생기면 그만큼만 변환하고 잔여 RNA는 유지되어야 한다
+bt.res.dna = Engine.caps(bt).dna - 1;
+const rnaBefore = bt.res.rna;
+Engine.tick(bt, 10, null);
+const partialOk =
+  Math.abs(bt.res.dna - Engine.caps(bt).dna) < 1e-6 && bt.res.rna > rnaBefore ? 1 : 0;
+
 /* 악성/손상 저장 방어 검증 (리뷰에서 확인된 공격 벡터 재현) */
 const evil = [
   '{"__proto__":{"engineering":true,"x":5}}',
@@ -211,6 +226,7 @@ const result = {
     cumKnow: Math.round(st.stats.cumKnow),
   },
   achievements: { count: Object.keys(st.ach).length, ids: Object.keys(st.ach) },
+  bottleneckOk, partialOk,
   saveRoundtripOk: saveOk,
   offlineGains: off ? Object.fromEntries(Object.entries(off.gains).map(([k, v]) => [k, Math.round(v)])) : null,
   evilSaveDefenseOk: evilOk,

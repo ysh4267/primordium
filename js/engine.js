@@ -134,8 +134,11 @@ const Engine = (() => {
       const orgRate = st.evo.organelle * 0.7 * (1 + 0.25 * st.evo.mito) * essenceMult(st);
       prod.rna += orgRate;
       // 핵: RNA 1.4/s → DNA 0.7/s ×정수 (재고 기반 제한은 tick에서 처리)
-      cons.rna += st.evo.nucleus * 1.4;
-      prod.dna = st.evo.nucleus * 0.7 * essenceMult(st);
+      // DNA 한도가 차면 변환이 정지(병목)되어 RNA가 대신 쌓인다
+      if (st.res.dna < caps(st).dna - 1e-9) {
+        cons.rna += st.evo.nucleus * 1.4;
+        prod.dna = st.evo.nucleus * 0.7 * essenceMult(st);
+      }
       return { prod, cons };
     }
 
@@ -160,12 +163,14 @@ const Engine = (() => {
 
     if (st.phase === 'evolution') {
       st.res.rna = Math.min(cap.rna, st.res.rna + prod.rna * dt);
-      // 핵 변환: 실제 RNA 재고만큼만
-      const want = cons.rna * dt;
-      const got = Math.min(want, st.res.rna);
-      if (want > 0) {
+      // 핵 변환: RNA 재고와 DNA 남은 한도 양쪽으로 제한 —
+      // DNA가 꽉 차면 RNA를 소모하지 않고 그대로 쌓이게 한다 (병목)
+      const eff = 0.5 * essenceMult(st);
+      const dnaRoom = Math.max(0, cap.dna - st.res.dna);
+      const got = Math.min(st.evo.nucleus * 1.4 * dt, st.res.rna, dnaRoom / eff);
+      if (got > 0) {
         st.res.rna -= got;
-        st.res.dna = Math.min(cap.dna, st.res.dna + got * 0.5 * essenceMult(st));
+        st.res.dna = Math.min(cap.dna, st.res.dna + got * eff);
       }
     } else {
       const knowBefore = st.res.know;
@@ -214,8 +219,9 @@ const Engine = (() => {
   }
 
   function clickDNA(st) {
-    if (st.res.rna < 2) return false;
     const cap = caps(st);
+    // DNA가 꽉 찼으면 RNA를 낭비하지 않는다
+    if (st.res.rna < 2 || st.res.dna >= cap.dna - 1e-9) return false;
     st.res.rna -= 2;
     st.res.dna = Math.min(cap.dna, st.res.dna + 1 * essenceMult(st));
     st.stats.clicks++; st.stats.actions++;
