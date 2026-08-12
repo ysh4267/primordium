@@ -419,7 +419,7 @@ const UI = (() => {
         k.style.background = HEAT[i];
         lg.append(k);
       }
-      lg.append(el('span', null, '높음'), el('span', null, '· 셀 = 10초 생산량'));
+      lg.append(el('span', null, '높음'), el('span', null, '· 셀 = 10초 생산량 · 좌상단 = 최근'));
     }
   }
 
@@ -513,7 +513,7 @@ const UI = (() => {
     const cells = $('heatmap').children;
     const max = Math.max(1e-9, ...heat);
     for (let i = 0; i < cells.length; i++) {
-      const v = heat[i] || 0;
+      const v = heat[heat.length - 1 - i] || 0; // 좌상단 셀이 가장 최근
       let bin = 0;
       if (v > 0) bin = 1 + Math.min(5, Math.floor((v / max) * 5.999));
       cells[i].style.background = HEAT[bin];
