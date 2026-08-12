@@ -159,11 +159,14 @@ const G = (() => {
     UI.update(state, Engine.rates(state));
     UI.pushHist(state);
 
-    // 딥링크: #build/#research/#people = 드로어, #ach/#records/#settings = 메인 탭
+    // 딥링크: #build/#research/#people = 드로어, #ach/#records/#settings = 메인 탭,
+    //         #hl=자원id = 차트 하이라이트
     const hash = location.hash.slice(1);
     if (hash === 'build' || hash === 'ach' || hash === 'records' || hash === 'settings' ||
         (state.phase === 'civ' && (hash === 'research' || hash === 'people')))
       UI.switchTab(hash, state);
+    const hl = hash.match(/^hl=([a-z]+)$/);
+    if (hl) UI.setChartMetric(hl[1]);
 
     lastTick = performance.now();
     setInterval(loop, 250);

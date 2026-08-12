@@ -231,13 +231,27 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.01em; }
 .chart-tip {
   position: absolute; pointer-events: none;
   background: #fff; color: var(--dark);
-  border-radius: 12px; padding: 7px 12px;
+  border-radius: 12px; padding: 8px 12px;
   font-size: 13px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-  transform: translate(-50%, -130%);
+  transform: translate(-50%, -110%);
   white-space: nowrap; z-index: 5;
+  min-width: 130px; text-align: left;
 }
-.chart-tip .v { font-weight: 700; font-size: 14px; }
-.chart-tip .t { color: var(--ink-3); font-size: 11.5px; }
+.chart-tip .t { color: var(--ink-3); font-size: 11.5px; margin-bottom: 2px; }
+.chart-tip .row { display: flex; align-items: center; gap: 7px; margin-top: 3px; }
+.chart-tip .row .key { width: 11px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+.chart-tip .row .name { color: var(--ink-2); font-size: 12px; }
+.chart-tip .row .v { font-weight: 600; font-size: 12.5px; margin-left: auto; }
+.chart-tip .row.lead .name { color: var(--ink); font-weight: 600; }
+.chart-tip .row.lead .v { font-weight: 800; font-size: 13.5px; }
+
+.ch-dim { opacity: 0.35; }
+
+/* 칩 범례 키 (시리즈 색상 스와치) */
+.chip .key {
+  display: inline-block; width: 11px; height: 3px; border-radius: 2px;
+  margin-right: 6px; vertical-align: 2.5px;
+}
 
 /* ===== 대시보드 하단 ===== */
 

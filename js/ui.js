@@ -145,7 +145,7 @@ const UI = (() => {
     ],
     evolution: [
       { key: 'rna', name: 'RNA', color: '#5B91FF', of: (r) => r.rna },
-      { key: 'dna', name: 'DNA', color: '#4A3AA7', of: (r) => r.dna },
+      { key: 'dna', name: 'DNA', color: '#D55181', of: (r) => r.dna },
     ],
   };
 
@@ -158,23 +158,40 @@ const UI = (() => {
   const heat = new Array(DATA.const.heatCells).fill(0); // 뒤가 최신
   let heatAcc = 0;
 
+  // 다크 카드(#121214) 위 시리즈 색 — MOF-2009 CVD 검증 완료, 순서=범례 순서 고정
   const METRICS = {
     evolution: [
-      { id: 'rna', name: 'RNA' },
-      { id: 'dna', name: 'DNA' },
+      { id: 'rna', name: 'RNA', color: '#3987E5' },
+      { id: 'dna', name: 'DNA', color: '#D55181' },
     ],
     civ: [
-      { id: 'total', name: '총자원' },
-      { id: 'food', name: '식량' },
-      { id: 'lumber', name: '목재' },
-      { id: 'stone', name: '석재' },
-      { id: 'know', name: '지식' },
-      { id: 'coins', name: '화폐', needsTech: 'currency' },
+      { id: 'food', name: '식량', color: '#199E70' },
+      { id: 'lumber', name: '목재', color: '#D95926' },
+      { id: 'stone', name: '석재', color: '#9085E9' },
+      { id: 'copper', name: '구리', color: '#D55181', needsTech: 'mining' },
+      { id: 'coins', name: '화폐', color: '#C98500', needsTech: 'currency' },
+      { id: 'know', name: '지식', color: '#3987E5' },
+      { id: 'iron', name: '철', color: '#E66767', needsTech: 'ironwork' },
     ],
   };
 
-  let chartMetric = 'rna';
+  let chartMetric = 'all'; // 'all' = 전체 표시, 자원 id = 하이라이트
   let chartRange = 600;
+
+  function chartSeries(st) {
+    return METRICS[st.phase].filter((m) => !m.needsTech || st.techs[m.needsTech]);
+  }
+
+  function setChartMetric(id) {
+    const st = G.state;
+    chartMetric = id !== 'all' && chartSeries(st).some((s) => s.id === id) ? id : 'all';
+    $('chart-metrics').querySelectorAll('.chip').forEach((c) => {
+      const on = (c.dataset.metric || 'all') === chartMetric;
+      c.classList.toggle('is-active', on);
+      c.setAttribute('aria-pressed', String(on));
+    });
+    renderChart(st);
+  }
 
   function metricValue(st, id) {
     if (id === 'total') {
@@ -368,25 +385,27 @@ const UI = (() => {
 
     $('pf-title').textContent = st.phase === 'evolution' ? '원시 수프' : '내 문명';
 
-    // --- 차트 지표 칩 ---
+    // --- 차트 지표 칩 (범례 겸 하이라이트 선택) ---
     const mrow = $('chart-metrics');
     mrow.textContent = '';
-    const metrics = METRICS[st.phase].filter((m) => !m.needsTech || st.techs[m.needsTech]);
-    if (!metrics.some((m) => m.id === chartMetric)) chartMetric = metrics[0].id;
-    for (const m of metrics) {
-      const chip = el('button', 'chip' + (m.id === chartMetric ? ' is-active' : ''), m.name);
+    const metrics = chartSeries(st);
+    if (chartMetric !== 'all' && !metrics.some((m) => m.id === chartMetric)) chartMetric = 'all';
+    const mkChip = (id, name, color) => {
+      const chip = el('button', 'chip' + (chartMetric === id ? ' is-active' : ''));
       chip.type = 'button';
-      chip.setAttribute('aria-pressed', String(m.id === chartMetric));
-      chip.addEventListener('click', () => {
-        chartMetric = m.id;
-        mrow.querySelectorAll('.chip').forEach((c) => {
-          c.classList.toggle('is-active', c === chip);
-          c.setAttribute('aria-pressed', String(c === chip));
-        });
-        renderChart(G.state);
-      });
+      chip.dataset.metric = id;
+      chip.setAttribute('aria-pressed', String(chartMetric === id));
+      if (color) {
+        const key = el('span', 'key');
+        key.style.background = color;
+        chip.append(key);
+      }
+      chip.append(document.createTextNode(name));
+      chip.addEventListener('click', () => setChartMetric(id));
       mrow.append(chip);
-    }
+    };
+    mkChip('all', '전체', null);
+    for (const m of metrics) mkChip(m.id, m.name, m.color);
     $('chart-title').textContent = st.phase === 'evolution' ? '유전 물질 추이' : '자원 추이';
 
     // --- 히트맵 (셀은 한 번만 생성) ---
@@ -576,7 +595,10 @@ const UI = (() => {
   const svgNS = 'http://www.w3.org/2000/svg';
   let chartW = 800, chartH = 250; // 실제 렌더 크기로 매 렌더마다 갱신
   const PADL = 10, PADR = 62, PADT = 18, PADB = 26;
-  let chartPts = []; // 렌더된 점 [{x,y,t,v}]
+  let chartPts = [];          // 렌더된 점 [{x, t, v:{시리즈별 값}}]
+  let chartSeriesCache = [];  // 마지막 렌더의 시리즈 목록
+  let chartSelCache = null;   // 마지막 렌더의 하이라이트 id
+  let chartYFn = null;        // 마지막 렌더의 Y 스케일 (호버 점 배치용)
 
   function chartData() {
     if (!hist.length) return [];
@@ -619,6 +641,10 @@ const UI = (() => {
     svg.textContent = '';
     const raw = chartData();
     chartPts = [];
+    chartSeriesCache = chartSeries(st);
+    chartSelCache = chartMetric !== 'all' && chartSeriesCache.some((s) => s.id === chartMetric)
+      ? chartMetric : null;
+    const series = chartSeriesCache, sel = chartSelCache;
     if (raw.length < 2) {
       const t = document.createElementNS(svgNS, 'text');
       t.setAttribute('x', chartW / 2); t.setAttribute('y', chartH / 2);
@@ -628,8 +654,16 @@ const UI = (() => {
       svg.append(t);
       return;
     }
-    const vals = raw.map((h) => h.v[chartMetric] || 0);
-    let mn = Math.min(...vals), mx = Math.max(...vals);
+    // 도메인은 항상 전체 시리즈 기준 — 하이라이트 시에도 나머지가 흐리게 남아 보이도록
+    let mn = Infinity, mx = -Infinity;
+    for (const s of series) {
+      for (const h of raw) {
+        const v = h.v[s.id] || 0;
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+      }
+    }
+    if (!isFinite(mn)) { mn = 0; mx = 1; }
     if (mx - mn < 1e-9) { mx = mn + 1; mn = Math.max(0, mn - 0.5); }
     const pad = (mx - mn) * 0.12;
     mn = Math.max(0, mn - pad); mx += pad;
@@ -667,40 +701,66 @@ const UI = (() => {
       svg.append(tx);
     }
 
-    // 영역 + 라인
-    let dLine = '', dArea = '';
-    raw.forEach((h, i) => {
-      const x = X(h.t), y = Y(h.v[chartMetric] || 0);
-      chartPts.push({ x, y, t: h.t, v: h.v[chartMetric] || 0 });
-      dLine += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
-    });
-    dArea = dLine + `L${X(t1).toFixed(1)} ${chartH - PADB}L${X(t0).toFixed(1)} ${chartH - PADB}Z`;
+    chartYFn = Y;
 
-    const area = document.createElementNS(svgNS, 'path');
-    area.setAttribute('d', dArea);
-    area.setAttribute('fill', 'rgba(255,255,255,0.09)');
-    svg.append(area);
+    // 하이라이트 줌에서 흐린 시리즈가 플롯 밖으로 나가면 잘라내는 클립
+    const defs = document.createElementNS(svgNS, 'defs');
+    const clip = document.createElementNS(svgNS, 'clipPath');
+    clip.setAttribute('id', 'plot-clip');
+    const crect = document.createElementNS(svgNS, 'rect');
+    crect.setAttribute('x', 0); crect.setAttribute('y', 2);
+    crect.setAttribute('width', chartW - PADR + 8);
+    crect.setAttribute('height', chartH - PADB - 2);
+    clip.append(crect);
+    defs.append(clip);
+    svg.append(defs);
 
-    const line = document.createElementNS(svgNS, 'path');
-    line.setAttribute('d', dLine);
-    line.setAttribute('fill', 'none');
-    line.setAttribute('stroke', '#FFFFFF');
-    line.setAttribute('stroke-width', '2');
-    line.setAttribute('stroke-linejoin', 'round');
-    line.setAttribute('stroke-linecap', 'round');
-    svg.append(line);
+    // 호버용 포인트 캐시 (인덱스별 전체 시리즈 값)
+    raw.forEach((h) => chartPts.push({ x: X(h.t), t: h.t, v: h.v }));
 
-    // 끝점 직접 라벨 (선별 라벨링: 마지막 값만)
-    const last = chartPts[chartPts.length - 1];
-    const dot = document.createElementNS(svgNS, 'circle');
-    dot.setAttribute('cx', last.x); dot.setAttribute('cy', last.y);
-    dot.setAttribute('r', '4.5');
-    dot.setAttribute('fill', '#FFFFFF');
-    dot.setAttribute('stroke', '#121214');
-    dot.setAttribute('stroke-width', '2');
-    svg.append(dot);
+    // 시리즈 라인 — 흐린 것 먼저 그리고 하이라이트를 맨 위에
+    const ordered = sel
+      ? series.filter((s) => s.id !== sel).concat(series.filter((s) => s.id === sel))
+      : series;
+    for (const s of ordered) {
+      let d = '';
+      raw.forEach((h, i) => {
+        d += (i ? 'L' : 'M') + X(h.t).toFixed(1) + ' ' + Y(h.v[s.id] || 0).toFixed(1);
+      });
+      if (sel === s.id) {
+        const area = document.createElementNS(svgNS, 'path');
+        area.setAttribute('d',
+          d + `L${X(t1).toFixed(1)} ${chartH - PADB}L${X(t0).toFixed(1)} ${chartH - PADB}Z`);
+        area.setAttribute('fill', s.color + '1A'); // 10% 워시
+        area.setAttribute('clip-path', 'url(#plot-clip)');
+        svg.append(area);
+      }
+      const line = document.createElementNS(svgNS, 'path');
+      line.setAttribute('d', d);
+      line.setAttribute('fill', 'none');
+      line.setAttribute('stroke', sel && sel !== s.id ? 'rgba(138,139,146,0.35)' : s.color);
+      line.setAttribute('stroke-width', '2');
+      line.setAttribute('stroke-linejoin', 'round');
+      line.setAttribute('stroke-linecap', 'round');
+      line.setAttribute('clip-path', 'url(#plot-clip)');
+      svg.append(line);
+    }
 
-    // 크로스헤어 요소
+    // 끝점: 전체 모드는 시리즈별 소형 점, 하이라이트는 선택 시리즈만 큰 점
+    const lastH = raw[raw.length - 1];
+    for (const s of series) {
+      if (sel && s.id !== sel) continue;
+      const dot = document.createElementNS(svgNS, 'circle');
+      dot.setAttribute('cx', X(t1));
+      dot.setAttribute('cy', Y(lastH.v[s.id] || 0));
+      dot.setAttribute('r', sel ? '4.5' : '3.5');
+      dot.setAttribute('fill', s.color);
+      dot.setAttribute('stroke', '#121214');
+      dot.setAttribute('stroke-width', '2');
+      svg.append(dot);
+    }
+
+    // 크로스헤어: 세로선 + 시리즈별 점
     const ch = document.createElementNS(svgNS, 'g');
     ch.setAttribute('id', 'crosshair');
     ch.setAttribute('visibility', 'hidden');
@@ -708,12 +768,17 @@ const UI = (() => {
     cline.setAttribute('y1', PADT); cline.setAttribute('y2', chartH - PADB);
     cline.setAttribute('stroke', 'rgba(255,255,255,0.4)');
     cline.setAttribute('stroke-width', '1');
-    const cdot = document.createElementNS(svgNS, 'circle');
-    cdot.setAttribute('r', '4.5');
-    cdot.setAttribute('fill', '#FFFFFF');
-    cdot.setAttribute('stroke', '#121214');
-    cdot.setAttribute('stroke-width', '2');
-    ch.append(cline, cdot);
+    ch.append(cline);
+    for (const s of series) {
+      const cdot = document.createElementNS(svgNS, 'circle');
+      cdot.setAttribute('class', 'ch-dot' + (sel && sel !== s.id ? ' ch-dim' : ''));
+      cdot.dataset.id = s.id;
+      cdot.setAttribute('r', sel ? (sel === s.id ? '4.5' : '3') : '3.5');
+      cdot.setAttribute('fill', s.color);
+      cdot.setAttribute('stroke', '#121214');
+      cdot.setAttribute('stroke-width', '2');
+      ch.append(cdot);
+    }
     svg.append(ch);
   }
 
@@ -721,7 +786,7 @@ const UI = (() => {
     const svg = $('chart-svg');
     const tip = $('chart-tip');
     const ch = svg.querySelector('#crosshair');
-    if (!chartPts.length || !ch) return;
+    if (!chartPts.length || !ch || !chartYFn) return;
     const rect = svg.getBoundingClientRect();
     const px = (ev.clientX - rect.left) / rect.width * chartW;
     let best = chartPts[0], bd = Infinity;
@@ -732,17 +797,32 @@ const UI = (() => {
     ch.setAttribute('visibility', 'visible');
     ch.querySelector('line').setAttribute('x1', best.x);
     ch.querySelector('line').setAttribute('x2', best.x);
-    const cdot = ch.querySelector('circle');
-    cdot.setAttribute('cx', best.x); cdot.setAttribute('cy', best.y);
+    ch.querySelectorAll('.ch-dot').forEach((c) => {
+      c.setAttribute('cx', best.x);
+      c.setAttribute('cy', chartYFn(best.v[c.dataset.id] || 0));
+    });
+
+    // 툴팁: 시각 + 모든 시리즈 값 (하이라이트가 맨 위)
+    const series = chartSeriesCache, sel = chartSelCache;
     tip.hidden = false;
     tip.textContent = '';
-    tip.append(el('div', 'v tnum', fmt(best.v)), el('div', 't', fmtClock(best.t)));
+    tip.append(el('div', 't', fmtClock(best.t)));
+    const rows = sel
+      ? series.filter((s) => s.id === sel).concat(series.filter((s) => s.id !== sel))
+      : series;
+    for (const s of rows) {
+      const row = el('div', 'row' + (sel === s.id ? ' lead' : ''));
+      const key = el('span', 'key');
+      key.style.background = s.color;
+      row.append(key, el('span', 'name', s.name), el('span', 'v tnum', fmt(best.v[s.id] || 0)));
+      tip.append(row);
+    }
     const wrap = $('chart-wrap');
     const wr = wrap.getBoundingClientRect();
     const lx = best.x / chartW * wr.width;
-    const ly = best.y / chartH * wr.height;
-    tip.style.left = Math.max(50, Math.min(wr.width - 50, lx)) + 'px';
-    tip.style.top = ly + 'px';
+    tip.style.left = Math.max(70, Math.min(wr.width - 70, lx)) + 'px';
+    // 여러 행이라 위로 넘치지 않게 클램프
+    tip.style.top = Math.max(tip.offsetHeight + 14, 40) + 'px';
   }
 
   function chartLeave() {
@@ -1181,24 +1261,28 @@ const UI = (() => {
     resCard.append(wrap1);
     grid.append(resCard);
 
-    // 차트 데이터 표 (현재 지표/기간)
+    // 차트 데이터 표 (현재 하이라이트/기간 — 차트의 표 트윈)
     const chartCard = el('div', 'card');
-    const mName = (METRICS[st.phase].find((m) => m.id === chartMetric) || {}).name || chartMetric;
-    chartCard.append(el('h2', null, `차트 데이터 — ${mName}`));
+    const allSeries = chartSeries(st);
+    const cols = chartMetric !== 'all'
+      ? allSeries.filter((s) => s.id === chartMetric) : allSeries;
+    chartCard.append(el('h2', null,
+      `차트 데이터 — ${cols.length === 1 ? cols[0].name : '전체 자원'}`));
     chartCard.lastChild.style.marginBottom = '14px';
     const wrap2 = el('div', 'table-scroll');
     const tbl2 = el('table', 'data-table');
     const th2 = el('thead');
     const hr2 = el('tr');
-    hr2.append(el('th', null, '시각'), el('th', 'num', '값'));
+    hr2.append(el('th', null, '시각'));
+    for (const s of cols) hr2.append(el('th', 'num', s.name));
     th2.append(hr2);
     tbl2.append(th2);
     const tb2 = el('tbody');
     const pts = chartData();
     for (let i = pts.length - 1; i >= 0; i--) {
       const tr = el('tr');
-      tr.append(el('td', null, fmtClock(pts[i].t)),
-        el('td', 'num', fmt(pts[i].v[chartMetric] || 0)));
+      tr.append(el('td', null, fmtClock(pts[i].t)));
+      for (const s of cols) tr.append(el('td', 'num', fmt(pts[i].v[s.id] || 0)));
       tb2.append(tr);
     }
     if (!pts.length) {
@@ -1552,7 +1636,7 @@ const UI = (() => {
   }
 
   return {
-    init, update, updateSlow, markDirty, log, switchTab,
+    init, update, updateSlow, markDirty, log, switchTab, setChartMetric,
     pushHist, pushHeat, rotateHeat, resetCharts, showOverlay,
     fmt, fmtRate, fmtDur,
   };
