@@ -255,9 +255,8 @@ const UI = (() => {
     const anchors = { build: 'build-side', research: 'research-side', people: 'people-side' };
     if (anchors[tab]) $(anchors[tab]).append(card);
     else $('dash-side').prepend(card);
-    // 건설 탭에서는 '건설 관리' 이동 버튼이 무의미하므로 숨김
-    $('pf-manage').style.display = tab === 'build' ? 'none' : '';
   }
+
 
   function switchTab(tab, st) {
     activeTab = tab;
@@ -1767,7 +1766,10 @@ const UI = (() => {
         b.setAttribute('aria-label', name);
       }
     });
-    $('pf-manage').textContent = st.phase === 'evolution' ? '진화 관리' : '건설 관리';
+    // 카드의 건설 이동 버튼: 건설 탭에서만 숨김
+    const pfm = $('pf-manage');
+    pfm.textContent = st.phase === 'evolution' ? '진화 관리' : '건설 관리';
+    pfm.style.display = activeTab === 'build' ? 'none' : '';
     // 미확인 업적 점 배지
     const achBtn = document.querySelector('.side-btn[data-tab="ach"]');
     if (achBtn)

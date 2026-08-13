@@ -515,6 +515,11 @@ textarea.save-io {
 .tab-main { min-width: 0; }
 .tab-side { display: grid; gap: 18px; min-width: 0; align-self: start; }
 
+/* PC: 우측 컬럼을 sticky로 — 레이아웃 자리는 그대로 두고 스크롤만 따라온다 */
+@media (min-width: 821px) {
+  #dash-side, .tab-side { position: sticky; top: 16px; }
+}
+
 @media (max-width: 1150px) {
   .tab-grid { grid-template-columns: 1fr; }
 }
@@ -522,6 +527,7 @@ textarea.save-io {
 @media (max-width: 820px) {
   .tab-side { order: -1; } /* 모바일: 대시보드처럼 채집 카드가 위로 */
 }
+
 
 /* ===== 토스트 (업적 알림 — 비모달) ===== */
 
