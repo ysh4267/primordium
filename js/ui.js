@@ -565,19 +565,26 @@ const UI = (() => {
       box.append(el('div', 'trend-empty', '최근 1분간 증가한 자원이 없습니다'));
       return;
     }
-    for (const it of items.slice(0, 3)) {
-      const div = el('div', 'trend-item');
-      const ic = el('div', 'trend-icon');
-      ic.append(icon((DATA.resources[it.m.id] || {}).icon || 'box', 16));
-      const mid = el('div');
-      mid.append(el('div', 'trend-name', it.m.name), sparkline(it.m.id, it.m.color));
-      const val = el('div', 'trend-val');
-      val.append(
-        el('div', 'n tnum', fmt(it.cur)),
-        el('div', 'd', `+${fmt(it.gain)} (${it.pct >= 100 ? '100+' : Math.round(it.pct)}%)`));
-      div.append(ic, mid, val);
-      box.append(div);
-    }
+    for (const it of items.slice(0, 3))
+      box.append(trendRow(it.m, it.cur, it.gain, it.pct));
+  }
+
+  // 가속 카드와 기록 탭 '자원 증감'이 공유하는 행 (아이콘 · 이름+스파크 · 값+증감)
+  function trendRow(m, cur, delta, pct) {
+    const div = el('div', 'trend-item');
+    const ic = el('div', 'trend-icon');
+    ic.append(icon((DATA.resources[m.id] || {}).icon || 'box', 16));
+    const mid = el('div');
+    mid.append(el('div', 'trend-name', m.name), sparkline(m.id, m.color));
+    const val = el('div', 'trend-val');
+    const flat = Math.abs(delta) <= 0.5;
+    const cls = 'd' + (flat ? ' flat' : delta < 0 ? ' down' : '');
+    const txt = flat ? '±0 변화 없음'
+      : (delta < 0 ? '−' : '+') + fmt(Math.abs(delta))
+        + ` (${Math.abs(pct) >= 100 ? '100+' : Math.round(Math.abs(pct))}%)`;
+    val.append(el('div', 'n tnum', fmt(cur)), el('div', cls, txt));
+    div.append(ic, mid, val);
+    return div;
   }
 
   function sparkline(metricId, color) {
@@ -1379,6 +1386,29 @@ const UI = (() => {
     statsCard.append(sg);
     grid.append(statsCard);
 
+    // 자원 증감 모음 — 대시보드 '가속 중인 자원'의 전체 자원판.
+    // 감소·정체도 함께 보여주고, 정렬은 자원 순서 고정(매초 재구축 시 행이 튀지 않게)
+    const flowCard = el('div', 'card');
+    flowCard.id = 'res-flow-card';
+    flowCard.append(el('h2', null, '자원 증감 — 최근 1분'));
+    flowCard.lastChild.style.marginBottom = '14px';
+    if (hist.length < 10) {
+      flowCard.append(el('div', 'trend-empty', '데이터 수집 중… 잠시 후 표시됩니다'));
+    } else {
+      const fn = hist.length, fwin = Math.min(fn, 60);
+      const fold = hist[fn - fwin].v, fnow = hist[fn - 1].v;
+      const fg = el('div', 'flow-grid');
+      for (const m of METRICS[st.phase]) {
+        if (m.id === 'total') continue;
+        if (m.needsTech && !st.techs[m.needsTech]) continue;
+        const a = fold[m.id] || 0, b = fnow[m.id] || 0;
+        const pct = a > 1 ? (b - a) / a * 100 : (b - a > 0.5 ? 100 : 0);
+        fg.append(trendRow(m, b, b - a, pct));
+      }
+      flowCard.append(fg);
+    }
+    grid.append(flowCard);
+
     // 자원 표
     const resCard = el('div', 'card');
     resCard.append(el('h2', null, '자원 현황 표'));
@@ -1864,7 +1894,14 @@ const UI = (() => {
     document.querySelectorAll('.side-btn').forEach((b) =>
       b.addEventListener('click', () => switchTab(b.dataset.tab, G.state)));
     document.querySelectorAll('[data-goto]').forEach((b) =>
-      b.addEventListener('click', () => switchTab(b.dataset.goto, G.state)));
+      b.addEventListener('click', () => {
+        switchTab(b.dataset.goto, G.state);
+        // data-focus = 탭 안의 특정 카드로 바로 스크롤 (예: 가속 자원 → 자원 증감)
+        if (b.dataset.focus) {
+          const t = document.getElementById(b.dataset.focus);
+          if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }));
     // 오버레이 Esc/Tab 처리 (document 레벨 — 포커스 위치와 무관하게 동작)
     document.addEventListener('keydown', (ev) => {
       if ($('overlay').hidden) return;
