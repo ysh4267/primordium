@@ -17,7 +17,7 @@ const Sync = (() => {
   let tokenExpiry = 0; // epoch ms
   let fileId = null;
   let lastSyncAt = 0;
-  let busy = false;
+  let queue = Promise.resolve(); // 동기화 작업 직렬화 — 겹치면 실패 대신 순서대로
   let lastError = '';
   let pending = null;  // 진행 중인 signIn의 {resolve, reject}
   let refreshT = 0;    // 만료 전 조용한 갱신 타이머
@@ -82,6 +82,14 @@ const Sync = (() => {
             if (resp.error) {
               lastError = resp.error;
               settle(new Error(resp.error));
+              return;
+            }
+            // 동의 화면에서 Drive 권한 체크박스를 끈 채 계속하면 토큰은 오지만
+            // 스코프가 빠져 모든 업로드가 403이 된다 — 여기서 바로 잡아낸다
+            if (google.accounts.oauth2.hasGrantedAllScopes &&
+                !google.accounts.oauth2.hasGrantedAllScopes(resp, SCOPES)) {
+              lastError = 'Drive 접근 권한이 거부되었습니다 — 다시 로그인해 권한 항목을 허용해 주세요';
+              settle(new Error(lastError));
               return;
             }
             accessToken = resp.access_token;
@@ -194,31 +202,48 @@ const Sync = (() => {
 
   /* ---------- 상위 API ---------- */
 
-  async function syncUp(json) {
-    if (!signedIn() || busy) return false;
-    busy = true;
-    try {
-      await upload(json);
-      lastSyncAt = Date.now();
-      lastError = '';
-      return true;
-    } catch (e) {
-      lastError = String((e && e.message) || e);
-      return false;
-    } finally { busy = false; }
+  // 작업을 큐에 이어 붙여 직렬로 실행 — 로그인 직후 자동 동기화 중에
+  // "지금 업로드"를 눌러도 실패 대신 차례를 기다린다
+  function enqueue(job) {
+    const run = queue.then(job, job);
+    queue = run.then(() => {}, () => {});
+    return run;
   }
 
-  async function syncDown() {
-    if (!signedIn() || busy) return null;
-    busy = true;
-    try {
-      const text = await download();
-      lastError = '';
-      return text;
-    } catch (e) {
-      lastError = String((e && e.message) || e);
-      return null;
-    } finally { busy = false; }
+  function niceError(e) {
+    const msg = String((e && e.message) || e);
+    if (/Failed to fetch|NetworkError|Load failed/i.test(msg))
+      return '네트워크 오류 — 인터넷 연결이나 광고 차단 확장(googleapis.com 차단 여부)을 확인하세요';
+    return msg;
+  }
+
+  function syncUp(json) {
+    if (!signedIn()) { lastError = '로그인이 필요합니다'; return Promise.resolve(false); }
+    return enqueue(async () => {
+      try {
+        await upload(json);
+        lastSyncAt = Date.now();
+        lastError = '';
+        return true;
+      } catch (e) {
+        lastError = niceError(e);
+        return false;
+      }
+    });
+  }
+
+  function syncDown() {
+    if (!signedIn()) { lastError = '로그인이 필요합니다'; return Promise.resolve(null); }
+    return enqueue(async () => {
+      try {
+        const text = await download();
+        lastError = '';
+        return text;
+      } catch (e) {
+        lastError = niceError(e);
+        return null;
+      }
+    });
   }
 
   return {

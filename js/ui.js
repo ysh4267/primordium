@@ -1871,6 +1871,10 @@ const UI = (() => {
       if (ev.key === 'Escape') { ev.preventDefault(); closeOverlay(false); }
       else if (ev.key === 'Tab') { ev.preventDefault(); $('overlay-btn').focus(); }
     });
+    // 카드 바깥(어두운 배경) 클릭·터치 = Esc와 동일하게 취소
+    $('overlay').addEventListener('click', (ev) => {
+      if (ev.target === $('overlay')) closeOverlay(false);
+    });
     $('chart-ranges').querySelectorAll('.chip').forEach((chip) => {
       chip.setAttribute('aria-pressed', String(chip.classList.contains('is-active')));
       chip.addEventListener('click', () => {
