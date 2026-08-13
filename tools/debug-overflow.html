@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><title>가로 오버플로 진단 (개발용)</title></head>
+<body>
+<!-- 390px 뷰포트로 게임을 띄우고, 뷰포트 오른쪽 밖으로 넘치는 요소를 나열한다.
+     headless --dump-dom으로 결과(#out)를 수집한다. -->
+<iframe id="f" src="../index.html" style="width:390px;height:1700px;border:0"></iframe>
+<pre id="out">진단 중…</pre>
+<script>
+'use strict';
+const f = document.getElementById('f');
+const out = document.getElementById('out');
+f.addEventListener('load', () => {
+  setTimeout(() => {
+    try {
+      const doc = f.contentDocument;
+      const W = 390;
+      const lines = ['viewport=' + W,
+        'docScrollWidth=' + doc.documentElement.scrollWidth,
+        'bodyScrollWidth=' + doc.body.scrollWidth];
+      const seen = [];
+      for (const el of doc.querySelectorAll('body *')) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.right > W + 1) {
+          seen.push({ el, right: Math.round(r.right), w: Math.round(r.width) });
+        }
+      }
+      // 부모가 이미 넘친 경우 자식은 잡음 — 넘친 조상이 없는 것만 남긴다
+      const roots = seen.filter((s) =>
+        !seen.some((o) => o !== s && o.el.contains(s.el)));
+      for (const s of roots.slice(0, 30)) {
+        const e = s.el;
+        const cs = f.contentWindow.getComputedStyle(e);
+        lines.push(`<${e.tagName.toLowerCase()} class="${e.className && e.className.baseVal !== undefined ? e.className.baseVal : e.className}" id="${e.id}"> right=${s.right} w=${s.w} display=${cs.display} flexWrap=${cs.flexWrap} overflowX=${cs.overflowX}`);
+      }
+      for (const sel of ['.topbar', '.portfolio-card', '.gather-row', '.stat-card',
+        '.chart-card', '.chip-row', '.activity-card', '.side-nav', '.main']) {
+        const e = doc.querySelector(sel);
+        if (e) {
+          const r = e.getBoundingClientRect();
+          lines.push(sel + ' left=' + Math.round(r.left) + ' right=' + Math.round(r.right));
+        }
+      }
+      const m = doc.getElementById('chart-metrics');
+      if (m) {
+        const cs = f.contentWindow.getComputedStyle(m);
+        lines.push('--- #chart-metrics: wrap=' + cs.flexWrap + ' w=' + Math.round(m.getBoundingClientRect().width)
+          + ' chips=' + m.children.length);
+      }
+      out.textContent = lines.join('\n');
+    } catch (e) { out.textContent = 'ERR ' + e; }
+  }, 1500);
+});
+</script>
+</body>
+</html>

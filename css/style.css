@@ -621,17 +621,21 @@ textarea.save-io {
   }
   .logo { display: none; }
   .side-nav {
-    flex-direction: row; margin: 0; gap: 6px;
+    flex-direction: row; margin: 0; gap: 2px;
     flex: 1; justify-content: space-around;
   }
+  /* 좁은 폰(360px)에서도 탭 7개가 다 들어가게 — 고정 최소폭 대신 균등 분배 */
   .side-btn {
-    flex-shrink: 0; border: 0; background: none;
-    width: auto; height: auto; min-width: 54px;
-    padding: 6px 8px; border-radius: 12px;
+    flex: 1 1 0; min-width: 0; border: 0; background: none;
+    width: auto; height: auto;
+    padding: 6px 2px; border-radius: 12px;
     display: flex; flex-direction: column; align-items: center; gap: 3px;
   }
   .side-btn.is-active { background: var(--dark); color: #fff; }
-  .side-label { display: block; font-size: 10px; font-weight: 600; }
+  .side-label {
+    display: block; font-size: 10px; font-weight: 600;
+    max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .toast-box { top: 12px; }
 
   .main { padding: 10px 14px calc(84px + env(safe-area-inset-bottom)); }
@@ -658,13 +662,9 @@ textarea.save-io {
   #chart-svg { height: 200px; }
   .chart-head { flex-wrap: wrap; }
   .chip { padding: 11px 14px; } /* 터치 타깃 확보 */
-  /* 지표 칩: 한 줄 가로 스크롤 */
-  .chip-row-metric {
-    flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px;
-    scrollbar-width: none;
-  }
-  .chip-row-metric::-webkit-scrollbar { display: none; }
-  .chip-row-metric .chip { flex-shrink: 0; }
+  /* 지표 칩: 자원이 늘어도 전부 고를 수 있게 줄바꿈
+   * (가로 스크롤 방식은 스크롤바를 숨겨 마우스로는 밀려난 칩에 닿을 수 없었다) */
+  .chip-row-metric .chip { padding: 8px 12px; flex-shrink: 0; } /* 터치 타깃 */
 
   .portfolio-card .hero-number { font-size: 32px; }
   .job-info .t2 { font-size: 11.5px; }
