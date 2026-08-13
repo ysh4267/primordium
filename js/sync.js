@@ -136,7 +136,18 @@ const Sync = (() => {
         (opts && opts.headers) || {}),
     }));
     if (res.status === 401) { accessToken = null; throw new Error('로그인이 만료되었습니다'); }
-    if (!res.ok) throw new Error('Drive API 오류 (' + res.status + ')');
+    if (!res.ok) {
+      // Drive가 주는 실제 원인(에러 JSON)을 살려서 표시한다 —
+      // 상태 코드만으로는 API 미활성화/권한 부족을 구분할 수 없다
+      let msg = 'Drive API 오류 (' + res.status + ')';
+      try {
+        const j = await res.json();
+        if (j.error && j.error.message) msg = 'Drive ' + res.status + ': ' + j.error.message;
+      } catch (e) {}
+      if (res.status === 403 && /has not been used|is disabled|accessNotConfigured|SERVICE_DISABLED/i.test(msg))
+        msg = 'Google Drive API가 프로젝트에서 활성화되지 않았습니다 — Cloud Console에서 Drive API를 켜세요';
+      throw new Error(msg);
+    }
     return res;
   }
 
