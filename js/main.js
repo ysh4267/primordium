@@ -70,6 +70,29 @@ const G = (() => {
     return Sync.syncUp(Engine.serialize(state));
   }
 
+  /* 로그인/복원 직후 첫 동기화. 예전에는 무조건 업로드해서 새 기기에서
+   * 로그인하면 클라우드 저장을 빈 진행으로 덮어썼다 — 먼저 내려받아 비교한다.
+   * interactive: 로그인 버튼 경로. 클라우드 저장이 있으면 항상 물어본다
+   * (새 기기의 방금 만든 상태가 타임스탬프상 더 "최신"일 수 있어서).
+   * 조용한 복원 경로에서는 클라우드가 확실히 최신일 때만 묻는다. */
+  function cloudSmartSync(interactive) {
+    return Sync.syncDown().then((text) => {
+      let cloud = null;
+      if (text) { try { cloud = Engine.deserialize(text); } catch (e) {} }
+      const newer = cloud && cloud.lastSave > state.lastSave + 2000;
+      if (cloud && (interactive || newer)) {
+        const ageMin = Math.max(0, Math.round((Date.now() - cloud.lastSave) / 60000));
+        UI.showOverlay('download', '클라우드 저장 발견',
+          `클라우드 저장: 약 ${ageMin}분 전 업로드${newer ? ' (이 기기보다 최신)' : ''}.\n`
+          + '불러오면 이 기기의 진행을 덮어씁니다.\n'
+          + 'Esc를 누르면 이 기기의 진행을 유지하고, 이후 자동 업로드가 클라우드를 덮어씁니다.',
+          '불러온다', () => { replaceState(cloud); });
+      } else {
+        cloudUp();
+      }
+    });
+  }
+
   function cloudDown() {
     return Sync.syncDown().then((text) => {
       if (!text) {
@@ -205,6 +228,12 @@ const G = (() => {
     const hl = hash.match(/^hl=([a-z]+)$/);
     if (hl) UI.setChartMetric(hl[1]);
 
+    // 이전에 로그인해 쓰던 계정이면 조용히 복원 — 성공하면 첫 동기화까지.
+    // (state.lastSave는 이 시점엔 아직 "지난 방문의 마지막 저장 시각"이라
+    //  다른 기기에서 올린 클라우드 저장과 올바르게 비교된다)
+    if (Sync.available() && Sync.hasSession())
+      Sync.restore().then((ok) => { if (ok) cloudSmartSync(false); });
+
     lastTick = performance.now();
     setInterval(loop, 250);
     window.addEventListener('beforeunload', save);
@@ -218,7 +247,7 @@ const G = (() => {
 
   return {
     get state() { return state; },
-    boot, save, replaceState, doAscend, hardReset, cloudUp, cloudDown,
+    boot, save, replaceState, doAscend, hardReset, cloudUp, cloudDown, cloudSmartSync,
   };
 })();
 

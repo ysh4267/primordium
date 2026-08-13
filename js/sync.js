@@ -19,12 +19,25 @@ const Sync = (() => {
   let lastSyncAt = 0;
   let busy = false;
   let lastError = '';
+  let pending = null;  // 진행 중인 signIn의 {resolve, reject}
+  let refreshT = 0;    // 만료 전 조용한 갱신 타이머
+
+  // 토큰 자체는 저장할 수 없으니(만료 1시간) "로그인해서 쓰던 중"이라는
+  // 사실만 남겨 두고, 다음 방문 때 화면 없이 재발급을 시도한다.
+  const FLAG = 'primordium-sync-on';
 
   const clientId = () =>
     (window.PRIMORDIUM_CONFIG && window.PRIMORDIUM_CONFIG.googleClientId) || '';
 
   const available = () => !!clientId();
   const signedIn = () => !!accessToken && Date.now() < tokenExpiry - 30000;
+
+  const hasSession = () => {
+    try { return localStorage.getItem(FLAG) === '1'; } catch (e) { return false; }
+  };
+  const remember = (on) => {
+    try { on ? localStorage.setItem(FLAG, '1') : localStorage.removeItem(FLAG); } catch (e) {}
+  };
 
   /* ---------- GIS 스크립트 로드 (필요할 때 1회) ---------- */
 
@@ -45,32 +58,66 @@ const Sync = (() => {
 
   /* ---------- 로그인/로그아웃 ---------- */
 
-  function signIn() {
+  function settle(err) {
+    const p = pending;
+    pending = null;
+    if (!p) return;
+    if (err) p.reject(err); else p.resolve();
+  }
+
+  function scheduleRefresh() {
+    clearTimeout(refreshT);
+    // 만료 2분 전 조용히 재발급 — 실패하면 signedIn()이 꺼지고 설정 탭에 오류가 표시된다
+    refreshT = setTimeout(() => { signIn(true).catch(() => {}); },
+      Math.max(60000, tokenExpiry - Date.now() - 120000));
+  }
+
+  function signIn(silent) {
     return loadGis().then(() => new Promise((resolve, reject) => {
       if (!tokenClient) {
         tokenClient = google.accounts.oauth2.initTokenClient({
           client_id: clientId(),
           scope: SCOPES,
-          callback: () => {},
+          callback: (resp) => {
+            if (resp.error) {
+              lastError = resp.error;
+              settle(new Error(resp.error));
+              return;
+            }
+            accessToken = resp.access_token;
+            tokenExpiry = Date.now() + (Number(resp.expires_in) || 3600) * 1000;
+            lastError = '';
+            remember(true);
+            scheduleRefresh();
+            settle(null);
+          },
+          // 팝업 차단/사용자가 창을 닫음 등 callback까지 오지 못하는 실패
+          error_callback: (err) => {
+            lastError = (err && (err.message || err.type)) || '로그인 실패';
+            settle(new Error(lastError));
+          },
         });
       }
-      tokenClient.callback = (resp) => {
-        if (resp.error) {
-          lastError = resp.error;
-          reject(new Error(resp.error));
-          return;
-        }
-        accessToken = resp.access_token;
-        tokenExpiry = Date.now() + (Number(resp.expires_in) || 3600) * 1000;
-        lastError = '';
-        resolve();
-      };
-      // 첫 로그인은 동의 화면, 이후는 조용히 갱신 시도
-      tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+      if (pending) { reject(new Error('로그인 진행 중')); return; }
+      pending = { resolve, reject };
+      // prompt '' — 이미 동의한 계정이면 화면 없이 토큰만 받고,
+      // 첫 로그인이면 Google이 필요한 동의 화면을 알아서 띄운다.
+      // silent(자동 복원/갱신)일 때도 동일 — 화면이 필요해지면 팝업 차단으로
+      // error_callback에 떨어지고, 로그인 버튼이 다시 표시된다.
+      tokenClient.requestAccessToken({ prompt: '' });
     }));
   }
 
+  /* 새로고침 후 로그인 복원 — 이전에 로그인해 쓰던 경우에만 조용히 시도 */
+  function restore() {
+    if (!available() || !hasSession()) return Promise.resolve(false);
+    if (signedIn()) return Promise.resolve(true);
+    return signIn(true).then(() => true, () => false);
+  }
+
   function signOut() {
+    clearTimeout(refreshT);
+    remember(false);
     if (accessToken && window.google && google.accounts) {
       try { google.accounts.oauth2.revoke(accessToken, () => {}); } catch (e) {}
     }
@@ -164,7 +211,7 @@ const Sync = (() => {
   }
 
   return {
-    available, signedIn, signIn, signOut, syncUp, syncDown,
+    available, signedIn, hasSession, restore, signIn, signOut, syncUp, syncDown,
     get lastSyncAt() { return lastSyncAt; },
     get lastError() { return lastError; },
   };

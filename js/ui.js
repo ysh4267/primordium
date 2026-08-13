@@ -1549,7 +1549,7 @@ const UI = (() => {
       settingsRefs.cloud = { bLogin, bUp, bDown, bOut, note: cnote };
       bLogin.addEventListener('click', () => {
         Sync.signIn()
-          .then(() => { G.cloudUp(); quickUpdate(); })
+          .then(() => { G.cloudSmartSync(true); quickUpdate(); })
           .catch(() => { flashBtn(bLogin, '로그인 실패'); quickUpdate(); });
       });
       bUp.addEventListener('click', () => {
@@ -1602,10 +1602,10 @@ const UI = (() => {
       c.bOut.style.display = on ? '' : 'none';
       c.note.textContent = on
         ? (Sync.lastSyncAt
-          ? `로그인됨 — 마지막 업로드 ${fmtClock(Sync.lastSyncAt)}. 5분마다 자동 업로드됩니다.`
-          : '로그인됨 — 5분마다 자동 업로드됩니다.')
+          ? `로그인됨 — 마지막 업로드 ${fmtClock(Sync.lastSyncAt)}. 5분마다 자동 업로드되고, 다음 방문 때 자동으로 다시 로그인됩니다.`
+          : '로그인됨 — 5분마다 자동 업로드되고, 다음 방문 때 자동으로 다시 로그인됩니다.')
         : (Sync.lastError
-          ? '오류: ' + Sync.lastError
+          ? '오류: ' + Sync.lastError + ' — 다시 로그인해 주세요.'
           : 'Google Drive의 앱 전용 공간에 저장을 백업합니다. 다른 기기에서 이어하려면 같은 계정으로 로그인하세요.');
     }
     const can = Engine.canAscend(st);
